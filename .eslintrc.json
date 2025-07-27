@@ -1,0 +1,23 @@
+{
+  "extends": [
+    "next/core-web-vitals",
+    "next/typescript"
+  ],
+  "rules": {
+    "no-console": "warn",
+    "prefer-const": "error",
+    "no-var": "error",
+    "@typescript-eslint/no-unused-vars": "error",
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/prefer-nullish-coalescing": "warn",
+    "@typescript-eslint/prefer-optional-chain": "warn",
+    "react-hooks/exhaustive-deps": "warn",
+    "react/no-unescaped-entities": "off"
+  },
+  "ignorePatterns": [
+    "node_modules",
+    ".next",
+    "out",
+    "dist"
+  ]
+}

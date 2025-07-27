@@ -8,7 +8,7 @@ This document outlines the deployment process for Range Trainer.
 
 ```bash
 # Clone and setup
-git clone https://github.com/your-username/range-trainer.git
+git clone https://github.com/Bertollo-Nicolas/range-trainer.git
 cd range-trainer
 pnpm install
 
@@ -66,6 +66,12 @@ npx vercel --prod
 
 ### 2. Database Setup
 
+#### Option 1: Complete Setup (Recommended)
+Copy and paste the entire content of `src/lib/database/complete-setup.sql` into your Supabase SQL editor and run it. This single file will create all necessary tables, indexes, triggers, and sample data.
+
+#### Option 2: Individual Migrations
+If you prefer to run migrations individually:
+
 ```sql
 -- Run the following migrations in order:
 -- 1. Basic schema
@@ -90,21 +96,22 @@ npx vercel --prod
 
 ### 3. Row Level Security (RLS)
 
-```sql
--- Enable RLS on all tables
-ALTER TABLE anki_decks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE anki_cards ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tree_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
+RLS is automatically configured by the complete setup script with permissive policies suitable for single-user deployments. For multi-user setups, you may want to customize the policies:
 
--- Example policies
+```sql
+-- Example: Restrict access to authenticated users only
+DROP POLICY IF EXISTS "Allow all operations on anki_decks" ON anki_decks;
 CREATE POLICY "Users can access their own decks"
 ON anki_decks FOR ALL
 TO authenticated
 USING (user_id = auth.uid());
+
+-- Apply similar patterns to other tables as needed
 ```
 
-### 4. Authentication Configuration
+### 4. Authentication Configuration (Optional)
+
+Range Trainer works without authentication by default. If you want to enable user accounts:
 
 1. **Email Settings** (optional)
    - Configure SMTP for email confirmations
@@ -114,6 +121,10 @@ USING (user_id = auth.uid());
    - Google OAuth
    - GitHub OAuth
    - Discord OAuth
+
+3. **Update RLS Policies**
+   - Modify database policies to require authentication
+   - See RLS section above for examples
 
 ## Environment Variables
 

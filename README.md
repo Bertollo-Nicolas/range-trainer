@@ -14,7 +14,7 @@ A comprehensive poker training application focused on range analysis, scenario p
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/range-trainer.git
+git clone https://github.com/Bertollo-Nicolas/range-trainer.git
 cd range-trainer
 
 # Install dependencies

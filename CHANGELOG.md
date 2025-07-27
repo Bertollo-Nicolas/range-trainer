@@ -152,5 +152,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 For support, feature requests, and bug reports:
 - 📧 Email: support@range-trainer.com
 - 💬 Discord: [Join our community](https://discord.gg/range-trainer)
-- 🐛 Issues: [GitHub Issues](https://github.com/your-username/range-trainer/issues)
+- 🐛 Issues: [GitHub Issues](https://github.com/Bertollo-Nicolas/range-trainer/issues)
 - 📖 Documentation: [docs.range-trainer.com](https://docs.range-trainer.com)

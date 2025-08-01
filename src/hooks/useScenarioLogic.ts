@@ -1,8 +1,21 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { ScenarioNode, PokerPosition, PokerAction, TableFormat, getTablePositions, shouldAutoFold } from '@/types/scenario'
+import { PokerPosition, PokerAction, TableFormat, getTablePositions } from '@/types/scenario'
 import { logger } from '@/utils/logger'
+
+interface ScenarioNode {
+  id: string
+  position: PokerPosition
+  action?: PokerAction | string | undefined
+  sizing?: string | undefined
+  isHero?: boolean | undefined
+  availableActions?: (PokerAction | string)[] | undefined
+  linkedRange?: any
+  stackSize?: number | undefined
+  type?: string | undefined
+  rangeId?: string | undefined
+}
 
 export interface ScenarioState {
   nodes: (ScenarioNode & { isAutomatic?: boolean })[]

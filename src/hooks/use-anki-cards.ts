@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { AnkiService } from '@/lib/services/anki-service'
 import { AnkiCard, AnkiCardInsert, AnkiCardUpdate, ReviewResponse } from '@/types/anki'
 

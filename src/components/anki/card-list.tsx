@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { AnkiCard, AnkiTreeNode } from '@/types/anki'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -13,11 +13,10 @@ import {
   Edit, 
   Trash2, 
   Eye,
-  Calendar,
   MoreHorizontal,
   Filter,
-  Play,
-  Brain
+  Brain,
+  Upload
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -29,6 +28,7 @@ import {
 import { CreateCardDialog } from './create-card-dialog'
 import { CardPreviewDialog } from './card-preview-dialog'
 import { EditCardDialog } from './edit-card-dialog'
+import { JsonImportDialog } from './json-import-dialog'
 
 interface CardListProps {
   deck: AnkiTreeNode
@@ -38,14 +38,16 @@ interface CardListProps {
   onEditCard: (cardId: string, updates: any) => Promise<void>
   onDeleteCard: (cardId: string) => Promise<void>
   onStartCustomStudy?: (selectedCards: AnkiCard[]) => void
+  onRefresh?: () => void
 }
 
-export function CardList({ deck, cards, loading, onCreateCard, onEditCard, onDeleteCard, onStartCustomStudy }: CardListProps) {
+export function CardList({ deck, cards, loading, onCreateCard, onEditCard, onDeleteCard, onStartCustomStudy, onRefresh }: CardListProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterState, setFilterState] = useState<'all' | 'new' | 'learning' | 'review' | 'due'>('all')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showPreviewDialog, setShowPreviewDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showJsonImportDialog, setShowJsonImportDialog] = useState(false)
   const [selectedCard, setSelectedCard] = useState<AnkiCard | null>(null)
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set())
   const [selectMode, setSelectMode] = useState(false)
@@ -179,6 +181,10 @@ export function CardList({ deck, cards, loading, onCreateCard, onEditCard, onDel
                 <Button variant="outline" onClick={toggleSelectMode} size="sm">
                   {selectMode ? 'Annuler sélection' : 'Sélectionner'}
                 </Button>
+                <Button variant="outline" onClick={() => setShowJsonImportDialog(true)} size="sm">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import JSON
+                </Button>
                 <Button onClick={() => setShowCreateDialog(true)} size="sm">
                   <Plus className="h-4 w-4 mr-2" />
                   Nouvelle carte
@@ -195,7 +201,6 @@ export function CardList({ deck, cards, loading, onCreateCard, onEditCard, onDel
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9"
-                  size="sm"
                 />
               </div>
               
@@ -416,6 +421,17 @@ export function CardList({ deck, cards, loading, onCreateCard, onEditCard, onDel
         }}
         onSubmit={handleEditSubmit}
         card={selectedCard}
+      />
+
+      <JsonImportDialog
+        isOpen={showJsonImportDialog}
+        onClose={() => setShowJsonImportDialog(false)}
+        onSuccess={() => {
+          setShowJsonImportDialog(false)
+          onRefresh?.()
+        }}
+        deckId={deck.id}
+        deckName={deck.name}
       />
     </div>
   )

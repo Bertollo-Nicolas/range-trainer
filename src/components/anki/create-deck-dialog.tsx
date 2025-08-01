@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { AnkiDeckInsert, DEFAULT_DECK_CONFIG } from '@/types/anki'
+import { IconSelector } from './icon-selector'
 
 interface CreateDeckDialogProps {
   isOpen: boolean
@@ -26,19 +27,15 @@ const PRESET_COLORS = [
   '#84CC16', // Lime
 ]
 
-const PRESET_ICONS = [
-  '📚', '🎴', '🧠', '📖', '📝', '🎯', '🔥', '⭐',
-  '🚀', '💡', '🎓', '📊', '🔬', '🎨', '🎪', '🎮'
-]
+// Icons now handled by IconSelector
 
 export function CreateDeckDialog({ isOpen, onClose, onSubmit, parentId }: CreateDeckDialogProps) {
   const [formData, setFormData] = useState<AnkiDeckInsert>({
+    ...DEFAULT_DECK_CONFIG,
     name: '',
     description: '',
-    color: DEFAULT_DECK_CONFIG.color,
-    icon: DEFAULT_DECK_CONFIG.icon,
-    parent_id: parentId,
-    ...DEFAULT_DECK_CONFIG
+    parent_id: parentId || null,
+    learning_steps: [...DEFAULT_DECK_CONFIG.learning_steps]
   })
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -49,35 +46,33 @@ export function CreateDeckDialog({ isOpen, onClose, onSubmit, parentId }: Create
     onSubmit({
       ...formData,
       name: formData.name.trim(),
-      parent_id: parentId
+      parent_id: parentId || null
     })
     
     // Reset form
     setFormData({
+      ...DEFAULT_DECK_CONFIG,
       name: '',
       description: '',
-      color: DEFAULT_DECK_CONFIG.color,
-      icon: DEFAULT_DECK_CONFIG.icon,
-      parent_id: parentId,
-      ...DEFAULT_DECK_CONFIG
+      parent_id: parentId || null,
+      learning_steps: [...DEFAULT_DECK_CONFIG.learning_steps]
     })
   }
 
   const handleClose = () => {
     setFormData({
+      ...DEFAULT_DECK_CONFIG,
       name: '',
       description: '',
-      color: DEFAULT_DECK_CONFIG.color,
-      icon: DEFAULT_DECK_CONFIG.icon,
-      parent_id: parentId,
-      ...DEFAULT_DECK_CONFIG
+      parent_id: parentId || null,
+      learning_steps: [...DEFAULT_DECK_CONFIG.learning_steps]
     })
     onClose()
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {parentId ? 'Créer un sous-deck' : 'Créer un nouveau deck'}
@@ -112,20 +107,10 @@ export function CreateDeckDialog({ isOpen, onClose, onSubmit, parentId }: Create
           {/* Icône */}
           <div className="space-y-2">
             <Label>Icône</Label>
-            <div className="grid grid-cols-8 gap-2">
-              {PRESET_ICONS.map((icon) => (
-                <Button
-                  key={icon}
-                  type="button"
-                  variant={formData.icon === icon ? "default" : "outline"}
-                  size="sm"
-                  className="h-10 text-lg"
-                  onClick={() => setFormData(prev => ({ ...prev, icon }))}
-                >
-                  {icon}
-                </Button>
-              ))}
-            </div>
+            <IconSelector
+              selectedIcon={formData.icon || DEFAULT_DECK_CONFIG.icon}
+              onIconSelect={(icon) => setFormData(prev => ({ ...prev, icon }))}
+            />
           </div>
 
           {/* Couleur */}

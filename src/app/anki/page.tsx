@@ -53,8 +53,8 @@ export default function AnkiPage() {
     }
   }
 
-  const handleStartCustomStudy = (selectedCards: any[]) => {
-    // Pour l'étude personnalisée, on utilise les cartes sélectionnées
+  const handleStartCustomStudy = () => {
+    // Pour l'étude personnalisée
     setViewMode('study')
   }
 
@@ -125,6 +125,10 @@ export default function AnkiPage() {
                     onEditCard={actions.updateCard}
                     onDeleteCard={actions.deleteCard}
                     onStartCustomStudy={handleStartCustomStudy}
+                    onRefresh={() => {
+                      actions.loadCards(selectedDeck.id)
+                      refreshSidebar?.()
+                    }}
                   />
                 </div>
               </div>

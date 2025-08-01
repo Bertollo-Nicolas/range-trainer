@@ -1,16 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { Navbar } from "@/components/navbar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Check, RotateCcw, Target, Plus, X } from "lucide-react"
+import { ArrowLeft, Check, RotateCcw, Target, X } from "lucide-react"
 import Link from "next/link"
 import { TreeItem } from '@/types/range'
 import { SessionService } from '@/lib/services/session-service'
 import { SimpleRangeLinkingModal } from '@/components/scenario/SimpleRangeLinkingModal'
 import { RangeTable } from '@/components/range-editor/range-table'
-import { Action, HandAction, MixedColor, FOLD_ACTION } from '@/types/range-editor'
+import { Action, HandAction, MixedColor } from '@/types/range-editor'
 import { ColorPicker } from '@/components/range-editor/color-picker'
 import { MixedColorManager } from '@/components/range-editor/mixed-color-manager'
 import { cn } from '@/lib/utils'
@@ -64,7 +63,7 @@ export default function RangeTraining() {
   const [comparisonResult, setComparisonResult] = useState<ComparisonResult | null>(null)
 
   const handleRangeSelect = async (range: TreeItem) => {
-    if (!range.data?.editorData) {
+    if (range.type !== 'range' || !range.data?.editorData) {
       alert('Cette range ne contient pas de données d\'éditeur. Veuillez l\'éditer d\'abord.')
       return
     }
@@ -84,7 +83,7 @@ export default function RangeTraining() {
       .filter(ha => ha.actionId && !ha.mixedColorId) // Exclure les mixed colors
       .map(ha => ({
         handId: ha.handId,
-        actionId: ha.actionId
+        actionId: ha.actionId!
       }))
 
     const session: TrainingSession = {
@@ -342,21 +341,6 @@ export default function RangeTraining() {
   }
 
   // Gestion des actions
-  const addAction = () => {
-    if (!currentSession) return
-    
-    const newAction: Action = {
-      id: `action-${Date.now()}`,
-      name: '',
-      color: '#6b994c',
-      isActive: false
-    }
-    setCurrentSession(prev => prev ? {
-      ...prev,
-      actions: [...prev.actions, newAction]
-    } : prev)
-  }
-
   const updateAction = (actionId: string, updates: Partial<Action>) => {
     if (!currentSession) return
     

@@ -99,6 +99,42 @@ export interface AnkiExportData {
   exportDate: string
 }
 
+// Types pour l'import JSON de cartes - Format simple
+export interface JsonCardImport {
+  front: string
+  back: string
+  tags?: string[]
+}
+
+export interface JsonImportData {
+  cards: JsonCardImport[]
+  deckId?: string
+}
+
+// Types pour l'import Anki export format
+export interface AnkiExportNote {
+  deckName: string
+  modelName: string
+  fields: {
+    Front: string
+    Back: string
+    [key: string]: string
+  }
+  tags?: string[]
+}
+
+export interface AnkiExportFormat {
+  name: string
+  notes: AnkiExportNote[]
+}
+
+export interface BulkImportResult {
+  success: number
+  failed: number
+  errors: string[]
+  createdDecks: string[] // Noms des decks créés automatiquement
+}
+
 // Configuration par défaut
 export const DEFAULT_DECK_CONFIG = {
   new_cards_per_day: 20,

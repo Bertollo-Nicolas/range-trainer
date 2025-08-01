@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { AnkiTreeNode, HeatmapData, LearningCurvePoint } from '@/types/anki'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
   BarChart3, 
@@ -173,7 +172,7 @@ export function DeckStatistics({ deck, onClose }: DeckStatisticsProps) {
             <div className="flex gap-1 overflow-x-auto max-w-full">
               {weeks.map((week, weekIndex) => (
                 <div key={weekIndex} className="flex flex-col gap-1">
-                  {week.map((day, dayIndex) => (
+                  {week.map((day) => (
                     <div
                       key={day.date}
                       className={`w-4 h-4 rounded-sm ${getIntensityColor(day.level)} cursor-pointer transition-transform hover:scale-110`}
@@ -229,7 +228,6 @@ export function DeckStatistics({ deck, onClose }: DeckStatisticsProps) {
       )
     }
 
-    const maxRetention = Math.max(...learningCurve.map(point => point.retention))
     const maxCards = Math.max(...learningCurve.map(point => point.cardsReviewed))
 
     return (
@@ -238,7 +236,7 @@ export function DeckStatistics({ deck, onClose }: DeckStatisticsProps) {
         <div className="relative h-48 border rounded-lg p-4">
           {/* Courbe simplifiée avec des barres */}
           <div className="flex items-end justify-between h-full gap-1">
-            {learningCurve.slice(-14).map((point, index) => {
+            {learningCurve.slice(-14).map((point) => {
               const retentionHeight = (point.retention / 100) * 100
               const cardHeight = (point.cardsReviewed / maxCards) * 50
               

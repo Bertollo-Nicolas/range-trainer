@@ -27,7 +27,6 @@ import MasterNode from './nodes/MasterNode'
 import PositionNode from './nodes/PositionNode'
 import { useScenarioV3 } from '@/hooks/useScenarioV3'
 import { POKER_POSITIONS, getPositionIndex } from '@/types/scenario'
-import { TreeItem as TreeItemType } from '@/types/range'
 
 // Types de nodes pour React Flow - v3 Implementation
 const nodeTypes: NodeTypes = {
@@ -104,7 +103,7 @@ function ScenarioBuilderV3Inner() {
       const secondRoundNodes = scenario.nodes.filter(n => n.id.includes('-2-'))
       
       // Afficher les nodes de première ronde
-      firstRoundNodes.forEach((node, index) => {
+      firstRoundNodes.forEach((node) => {
         const positionIndex = getPositionIndex(node.position)
         
         reactFlowNodes.push({
@@ -125,12 +124,12 @@ function ScenarioBuilderV3Inner() {
             scenarioStackSize: scenario.stackSize,
             availableActions: node.availableActions,
             currentAction: (node as any).action,
-            onChange: (action, sizing) => updateNodeAction(node.id, action, sizing),
+            onChange: (action: any, sizing: any) => updateNodeAction(node.id, action, sizing),
             onConvertToHero: () => convertToHero(node.id),
             onConvertToVilain: () => convertToVilain(node.id),
             onModifyAction: () => modifyNodeAction(node.id),
-            onLinkRange: (range) => linkRangeToNode(node.id, range),
-            onStackSizeChange: (stackSize) => setNodeStackSize(node.id, stackSize)
+            onLinkRange: (range: any) => linkRangeToNode(node.id, range),
+            onStackSizeChange: (stackSize: any) => setNodeStackSize(node.id, stackSize)
           }
         })
       })
@@ -155,12 +154,12 @@ function ScenarioBuilderV3Inner() {
             scenarioStackSize: scenario.stackSize,
             availableActions: node.availableActions,
             currentAction: (node as any).action,
-            onChange: (action, sizing) => updateNodeAction(node.id, action, sizing),
+            onChange: (action: any, sizing: any) => updateNodeAction(node.id, action, sizing),
             onConvertToHero: () => convertToHero(node.id),
             onConvertToVilain: () => convertToVilain(node.id),
             onModifyAction: () => modifyNodeAction(node.id),
-            onLinkRange: (range) => linkRangeToNode(node.id, range),
-            onStackSizeChange: (stackSize) => setNodeStackSize(node.id, stackSize)
+            onLinkRange: (range: any) => linkRangeToNode(node.id, range),
+            onStackSizeChange: (stackSize: any) => setNodeStackSize(node.id, stackSize)
           }
         })
       })

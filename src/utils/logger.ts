@@ -28,7 +28,7 @@ class Logger {
       message,
       data,
       timestamp: new Date().toISOString(),
-      context,
+      ...(context && { context }),
     }
   }
 

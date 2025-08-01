@@ -7,12 +7,9 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { 
-  RotateCcw, 
   Eye, 
-  EyeOff, 
   Clock,
   CheckCircle,
-  XCircle,
   Brain,
   Target
 } from 'lucide-react'

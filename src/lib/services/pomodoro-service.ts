@@ -3,8 +3,6 @@ import { Database } from '@/types/database'
 
 type PomodoroSessionRow = Database['public']['Tables']['pomodoro_sessions']['Row']
 type PomodoroSessionInsert = Database['public']['Tables']['pomodoro_sessions']['Insert']
-type PomodoroSessionUpdate = Database['public']['Tables']['pomodoro_sessions']['Update']
-type PomodoroHistoryRow = Database['public']['Tables']['pomodoro_history']['Row']
 
 export interface PomodoroSession {
   id: string
@@ -217,7 +215,7 @@ export class PomodoroService {
       actualDuration: row.actual_duration || undefined,
       completed: row.completed,
       startTime: new Date(row.start_time),
-      endTime: row.end_time ? new Date(row.end_time) : undefined
+      ...(row.end_time && { endTime: new Date(row.end_time) })
     }))
   }
 
@@ -236,8 +234,8 @@ export class PomodoroService {
       isRunning: row.is_running,
       isPaused: row.is_paused,
       completedPomodoros: row.completed_pomodoros,
-      startTime: row.start_time ? new Date(row.start_time) : undefined,
-      pauseTime: row.pause_time ? new Date(row.pause_time) : undefined,
+      ...(row.start_time && { startTime: new Date(row.start_time) }),
+      ...(row.pause_time && { pauseTime: new Date(row.pause_time) }),
       createdAt: new Date(row.created_at),
       updatedAt: new Date(row.updated_at)
     }

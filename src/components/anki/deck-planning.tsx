@@ -5,7 +5,6 @@ import { AnkiTreeNode, WorkloadPrediction } from '@/types/anki'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
   Calendar, 
@@ -17,7 +16,6 @@ import {
   Target,
   Zap
 } from 'lucide-react'
-import { AnkiService } from '@/lib/services/anki-service'
 
 interface DeckPlanningProps {
   deck: AnkiTreeNode
@@ -182,7 +180,7 @@ export function DeckPlanning({ deck, onClose }: DeckPlanningProps) {
           </Card>
 
           {/* Prochains jours */}
-          {predictions.nextWeek.map((day, index) => (
+          {predictions.nextWeek.map((day) => (
             <Card key={day.date} className="hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">

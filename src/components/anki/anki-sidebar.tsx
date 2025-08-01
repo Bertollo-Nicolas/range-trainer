@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { DndContext, DragEndEvent, DragOverEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { DndContext, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Search, FolderPlus, Loader2, AlertCircle } from 'lucide-react'
 import { AnkiTreeNode } from '@/types/anki'
@@ -34,7 +34,6 @@ export function AnkiSidebar({ className, onSelectDeck, onRefreshReady }: AnkiSid
   const [searchTerm, setSearchTerm] = useState('')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [createParentId, setCreateParentId] = useState<string | null>(null)
-  const [activeId, setActiveId] = useState<string | null>(null)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [editDeck, setEditDeck] = useState<AnkiTreeNode | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -117,15 +116,14 @@ export function AnkiSidebar({ className, onSelectDeck, onRefreshReady }: AnkiSid
     }
   }
 
-  const handleDragStart = (event: any) => {
-    setActiveId(event.active.id)
+  const handleDragStart = () => {
+    // Drag start logic
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
     
     if (!over || active.id === over.id) {
-      setActiveId(null)
       return
     }
 
@@ -136,11 +134,9 @@ export function AnkiSidebar({ className, onSelectDeck, onRefreshReady }: AnkiSid
     } catch (error) {
       console.error('Error moving deck:', error)
     }
-    
-    setActiveId(null)
   }
 
-  const handleDragOver = (event: DragOverEvent) => {
+  const handleDragOver = () => {
     // Logique pour le drag over si nécessaire
   }
 

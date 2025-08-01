@@ -91,7 +91,7 @@ export class TreeService {
       ...(updates.type === 'folder' && updates.hasOwnProperty('isExpanded') && { 
         is_expanded: (updates as any).isExpanded 
       }),
-      ...(updates.data && {
+      ...(updates.type === 'range' && updates.data && {
         hands: updates.data.hands,
         notes: updates.data.notes || null,
         editor_data: updates.data.editorData || null
@@ -273,8 +273,8 @@ export class TreeService {
         type: 'range',
         data: {
           hands: row.hands || [],
-          notes: row.notes || undefined,
-          editorData: row.editor_data || undefined
+          ...(row.notes && { notes: row.notes }),
+          ...(row.editor_data && { editorData: row.editor_data })
         }
       }
     }

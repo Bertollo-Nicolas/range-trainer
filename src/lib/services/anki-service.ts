@@ -6,17 +6,37 @@ import {
   AnkiCard,
   AnkiCardInsert,
   AnkiCardUpdate,
-  AnkiReview,
   AnkiReviewInsert,
   AnkiTreeNode,
   SM2Result,
   ReviewResponse,
+  JsonCardImport,
+  JsonImportData,
+  AnkiExportNote,
+  AnkiExportFormat,
+  BulkImportResult,
   DEFAULT_DECK_CONFIG,
   SM2_CONFIG
 } from '@/types/anki'
 
 export class AnkiService {
   // ==================== DECK MANAGEMENT ====================
+
+  // Trouver un deck par nom
+  static async findDeckByName(name: string): Promise<AnkiDeck | null> {
+    const { data, error } = await supabase
+      .from('anki_decks')
+      .select('*')
+      .eq('name', name)
+      .single()
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 = pas de résultat
+      console.error('Error finding deck by name:', error)
+      throw error
+    }
+
+    return data || null
+  }
   
   // Récupérer tous les decks avec structure hiérarchique
   static async getDecksTree(): Promise<AnkiTreeNode[]> {
@@ -294,7 +314,7 @@ export class AnkiService {
     const reviewData: AnkiReviewInsert = {
       card_id: cardId,
       quality: response.quality,
-      response_time_ms: response.responseTime,
+      ...(response.responseTime !== undefined && { response_time_ms: response.responseTime }),
       ease_before: card.ease_factor,
       ease_after: sm2Result.easeFactor,
       interval_before: card.interval_days,
@@ -308,6 +328,241 @@ export class AnkiService {
     if (reviewError) {
       console.error('Error recording review:', reviewError)
       throw reviewError
+    }
+  }
+
+  // ==================== IMPORT JSON ====================
+
+  // Importer des cartes depuis JSON
+  static async importCardsFromJson(jsonData: JsonImportData): Promise<BulkImportResult> {
+    const result: BulkImportResult = {
+      success: 0,
+      failed: 0,
+      errors: [],
+      createdDecks: []
+    }
+
+    if (!jsonData.cards || !Array.isArray(jsonData.cards)) {
+      result.errors.push('Format JSON invalide: "cards" doit être un tableau')
+      result.failed = 1
+      return result
+    }
+
+    for (let i = 0; i < jsonData.cards.length; i++) {
+      const cardData = jsonData.cards[i]
+      
+      try {
+        // Validation des données
+        if (!cardData.front || !cardData.back) {
+          result.errors.push(`Carte ${i + 1}: "front" et "back" sont requis`)
+          result.failed++
+          continue
+        }
+
+        if (!jsonData.deckId) {
+          result.errors.push(`Carte ${i + 1}: deckId manquant`)
+          result.failed++
+          continue
+        }
+
+        // Créer la carte
+        const ankiCardData: AnkiCardInsert = {
+          deck_id: jsonData.deckId,
+          front: cardData.front.trim(),
+          back: cardData.back.trim(),
+          tags: cardData.tags || []
+        }
+
+        await this.createCard(ankiCardData)
+        result.success++
+        
+      } catch (error) {
+        result.errors.push(`Carte ${i + 1}: ${error instanceof Error ? error.message : 'Erreur inconnue'}`)
+        result.failed++
+      }
+    }
+
+    return result
+  }
+
+  // Importer depuis un export Anki avec création automatique des decks
+  static async importFromAnkiExport(ankiData: AnkiExportFormat, parentDeckId?: string): Promise<BulkImportResult> {
+    const result: BulkImportResult = {
+      success: 0,
+      failed: 0,
+      errors: [],
+      createdDecks: []
+    }
+
+    if (!ankiData.notes || !Array.isArray(ankiData.notes)) {
+      result.errors.push('Format Anki invalide: "notes" doit être un tableau')
+      result.failed = 1
+      return result
+    }
+
+    // Grouper les notes par deck
+    const notesByDeck = new Map<string, AnkiExportNote[]>()
+    
+    ankiData.notes.forEach(note => {
+      const deckName = note.deckName || 'Default'
+      if (!notesByDeck.has(deckName)) {
+        notesByDeck.set(deckName, [])
+      }
+      notesByDeck.get(deckName)!.push(note)
+    })
+
+    // Traiter chaque deck
+    for (const [deckName, notes] of notesByDeck) {
+      try {
+        // Vérifier si le deck existe
+        let deck = await this.findDeckByName(deckName)
+        
+        // Créer le deck s'il n'existe pas
+        if (!deck) {
+          deck = await this.createDeck({
+            name: deckName,
+            description: `Deck importé depuis Anki - ${new Date().toLocaleDateString()}`,
+            icon: '📚',
+            color: '#3B82F6',
+            parent_id: parentDeckId || null
+          })
+          result.createdDecks.push(deckName)
+        }
+
+        // Importer les cartes de ce deck
+        for (let i = 0; i < notes.length; i++) {
+          const note = notes[i]
+          
+          try {
+            if (!note.fields || !note.fields.Front || !note.fields.Back) {
+              result.errors.push(`${deckName} - Note ${i + 1}: "fields.Front" et "fields.Back" sont requis`)
+              result.failed++
+              continue
+            }
+
+            const ankiCardData: AnkiCardInsert = {
+              deck_id: deck.id,
+              front: note.fields.Front.trim(),
+              back: note.fields.Back.trim(),
+              tags: note.tags || []
+            }
+
+            await this.createCard(ankiCardData)
+            result.success++
+            
+          } catch (error) {
+            result.errors.push(`${deckName} - Note ${i + 1}: ${error instanceof Error ? error.message : 'Erreur inconnue'}`)
+            result.failed++
+          }
+        }
+        
+      } catch (error) {
+        result.errors.push(`Erreur avec le deck "${deckName}": ${error instanceof Error ? error.message : 'Erreur inconnue'}`)
+        result.failed += notes.length
+      }
+    }
+
+    return result
+  }
+
+  // Créer plusieurs cartes en batch
+  static async createMultipleCards(cardsData: AnkiCardInsert[]): Promise<BulkImportResult> {
+    const result: BulkImportResult = {
+      success: 0,
+      failed: 0,
+      errors: [],
+      createdDecks: []
+    }
+
+    for (let i = 0; i < cardsData.length; i++) {
+      try {
+        await this.createCard(cardsData[i])
+        result.success++
+      } catch (error) {
+        result.errors.push(`Carte ${i + 1}: ${error instanceof Error ? error.message : 'Erreur inconnue'}`)
+        result.failed++
+      }
+    }
+
+    return result
+  }
+
+  // Valider le format JSON
+  static validateJsonImport(jsonText: string): { valid: boolean; data?: JsonImportData; error?: string } {
+    try {
+      const parsed = JSON.parse(jsonText)
+      
+      // Détecter le format Anki export
+      if (parsed.name && parsed.notes && Array.isArray(parsed.notes)) {
+        return this.validateAnkiExportFormat(parsed)
+      }
+      
+      // Format simple avec tableau "cards"
+      if (!parsed.cards || !Array.isArray(parsed.cards)) {
+        return { valid: false, error: 'Le JSON doit contenir un tableau "cards" ou être un export Anki avec "notes"' }
+      }
+
+      // Vérifier chaque carte
+      for (let i = 0; i < parsed.cards.length; i++) {
+        const card = parsed.cards[i]
+        if (!card.front || !card.back) {
+          return { valid: false, error: `Carte ${i + 1}: "front" et "back" sont requis` }
+        }
+        if (typeof card.front !== 'string' || typeof card.back !== 'string') {
+          return { valid: false, error: `Carte ${i + 1}: "front" et "back" doivent être des chaînes` }
+        }
+        if (card.tags && !Array.isArray(card.tags)) {
+          return { valid: false, error: `Carte ${i + 1}: "tags" doit être un tableau` }
+        }
+      }
+
+      return { valid: true, data: parsed as JsonImportData }
+      
+    } catch (error) {
+      return { valid: false, error: 'JSON invalide: ' + (error instanceof Error ? error.message : 'Format incorrect') }
+    }
+  }
+
+  // Valider et convertir le format Anki export
+  static validateAnkiExportFormat(parsed: any): { valid: boolean; data?: JsonImportData; error?: string; deckNames?: string[] } {
+    try {
+      const ankiData = parsed as AnkiExportFormat
+      
+      if (!ankiData.notes || !Array.isArray(ankiData.notes)) {
+        return { valid: false, error: 'Format Anki invalide: "notes" doit être un tableau' }
+      }
+
+      // Convertir au format interne et collecter les noms de decks
+      const cards: JsonCardImport[] = []
+      const deckNames = new Set<string>()
+      
+      for (let i = 0; i < ankiData.notes.length; i++) {
+        const note = ankiData.notes[i]
+        
+        if (!note.fields || !note.fields.Front || !note.fields.Back) {
+          return { valid: false, error: `Note ${i + 1}: "fields.Front" et "fields.Back" sont requis` }
+        }
+
+        // Collecter le nom du deck
+        if (note.deckName) {
+          deckNames.add(note.deckName)
+        }
+
+        cards.push({
+          front: note.fields.Front,
+          back: note.fields.Back,
+          tags: note.tags || []
+        })
+      }
+
+      return { 
+        valid: true, 
+        data: { cards } as JsonImportData,
+        deckNames: Array.from(deckNames)
+      }
+      
+    } catch (error) {
+      return { valid: false, error: 'Erreur de conversion Anki: ' + (error instanceof Error ? error.message : 'Format incorrect') }
     }
   }
 

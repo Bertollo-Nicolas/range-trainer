@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { Play, Pause, RotateCcw, Coffee, Timer, CheckCircle, Plus, Settings } from 'lucide-react'
+import { Play, Pause, RotateCcw, Coffee, Timer, Plus } from 'lucide-react'
 import { PomodoroService, PomodoroSession, PomodoroConfig } from '@/lib/services/pomodoro-service'
 import { PomodoroConfigModal } from '@/components/pomodoro-config-modal'
 import { PomodoroToaster } from '@/components/pomodoro-toaster'
@@ -70,7 +70,7 @@ export default function PomodoroPage() {
     }
     
     return () => {
-      document.title = 'Range Trainer'
+      document.title = 'Pomodoro - Range Trainer'
     }
   }, [currentSession?.timeLeft, currentSession?.currentType])
 

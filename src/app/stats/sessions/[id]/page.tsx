@@ -206,7 +206,7 @@ export default function SessionDetailPage() {
             </p>
           ) : (
             <div className="space-y-2">
-              {hands.map((hand, index) => (
+              {hands.map((hand) => (
                 <div 
                   key={hand.id} 
                   className={`p-4 rounded-lg border ${getHandColor(hand)}`}

@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core'
+import { DndContext, DragEndEvent, DragStartEvent, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { FolderPlus, Search, Folder, FileText, Loader2, AlertCircle } from 'lucide-react'
+import { FolderPlus, Search, Folder, FileText, Loader2, AlertCircle, Upload } from 'lucide-react'
 import { TreeItem as TreeItemType, TreeNode } from '@/types/range'
 import { useTreeItems } from '@/hooks/use-tree-items'
 import { TreeItem } from './tree-item'
@@ -15,6 +15,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { logger } from '@/utils/logger'
+import { RangeManagerImportDialog } from './range-manager-import-dialog'
+import { RangeManagerData } from '@/lib/services/range-manager-import'
 
 interface AsideProps {
   className?: string
@@ -43,6 +45,7 @@ export function AsideDB({ className, onSelectItem, onRefreshReady }: AsideProps)
   const [deleteItem, setDeleteItem] = useState<TreeItemType | null>(null)
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
   const [duplicateItem, setDuplicateItem] = useState<TreeItemType | null>(null)
+  const [showRMImportDialog, setShowRMImportDialog] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -208,7 +211,7 @@ export function AsideDB({ className, onSelectItem, onRefreshReady }: AsideProps)
     logger.debug('Drag started', { itemId: event.active.id }, 'AsideDB')
   }
 
-  const handleDragOver = (event: DragOverEvent) => {
+  const handleDragOver = () => {
     // Optionnel: feedback visuel pendant le survol
   }
 
@@ -252,6 +255,25 @@ export function AsideDB({ className, onSelectItem, onRefreshReady }: AsideProps)
       }, 'AsideDB')
     } catch (error) {
       logger.error('Error moving item', { error, itemId: draggedItem.id }, 'AsideDB')
+    }
+  }
+
+  const handleRMImportSuccess = async (ranges: RangeManagerData[]) => {
+    try {
+      for (const range of ranges) {
+        const newItem = {
+          name: range.name,
+          type: 'range' as const,
+          parentId: null,
+          data: { hands: range.hands }
+        }
+        
+        await actions.createItem(newItem)
+      }
+      
+      logger.info('Range Manager import completed', { count: ranges.length }, 'AsideDB')
+    } catch (error) {
+      logger.error('Error importing from Range Manager', { error }, 'AsideDB')
     }
   }
 
@@ -305,6 +327,15 @@ export function AsideDB({ className, onSelectItem, onRefreshReady }: AsideProps)
         >
           <FolderPlus className="h-4 w-4" />
           Ajouter un dossier
+        </Button>
+        
+        <Button
+          variant="outline"
+          className="w-full justify-start gap-2 h-10 cursor-pointer"
+          onClick={() => setShowRMImportDialog(true)}
+        >
+          <Upload className="h-4 w-4" />
+          Importer Range Manager
         </Button>
         
         {/* Search */}
@@ -400,6 +431,12 @@ export function AsideDB({ className, onSelectItem, onRefreshReady }: AsideProps)
         onOpenChange={setShowDuplicateDialog}
         item={duplicateItem}
         onConfirm={handleDuplicateConfirm}
+      />
+      
+      <RangeManagerImportDialog
+        isOpen={showRMImportDialog}
+        onClose={() => setShowRMImportDialog(false)}
+        onSuccess={handleRMImportSuccess}
       />
     </div>
   )

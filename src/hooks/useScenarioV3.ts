@@ -3,7 +3,6 @@
 import { useState, useCallback } from 'react'
 
 // Counter for generating unique IDs (avoids hydration mismatch)
-let nodeIdCounter = 0
 import { ScenarioService, ScenarioData } from '@/lib/services/scenario-service'
 import { 
   PokerPosition, 
@@ -175,7 +174,7 @@ export function useScenarioV3() {
 
   // Obtenir les actions disponibles selon le contexte global
   const getAvailableActionsForPosition = (
-    position: PokerPosition, 
+    _position: PokerPosition, 
     context: ScenarioContext
   ): PokerAction[] => {
     // Logique corrigée: regarder le contexte global, pas juste l'action précédente
@@ -222,7 +221,7 @@ export function useScenarioV3() {
       nodeId,
       position,
       action,
-      sizing,
+      ...(sizing !== undefined && { sizing }),
       timestamp: Date.now()
     }
 
@@ -233,12 +232,12 @@ export function useScenarioV3() {
 
     // Mettre à jour lastRaiser si action = relance
     if (['open', 'raise', '3bet', '4bet'].includes(action)) {
-      newContext.lastRaiser = { position, action, sizing }
+      newContext.lastRaiser = { position, action, ...(sizing !== undefined && { sizing }) }
     }
 
     // Mettre à jour lastOpener si action = limp/open et pas encore d'opener
     if (['limp', 'open'].includes(action) && !newContext.lastOpener) {
-      newContext.lastOpener = { position, action, sizing }
+      newContext.lastOpener = { position, action, ...(sizing !== undefined && { sizing }) }
     }
 
     return newContext
@@ -281,7 +280,7 @@ export function useScenarioV3() {
   }, [])
 
   // Création dynamique de nodes après BB selon v3 spec
-  const createPostBBNodes = (nodes: BaseNode[], context: ScenarioContext): BaseNode[] => {
+  const createPostBBNodes = (nodes: BaseNode[], _context: ScenarioContext): BaseNode[] => {
     const newNodes: BaseNode[] = []
     
     // Trouver le dernier joueur ayant relancé
@@ -298,7 +297,7 @@ export function useScenarioV3() {
         position: player.position,
         state: 'Actif', // Ils peuvent maintenant agir
         isHero: player.isHero,
-        linkedRange: player.linkedRange,
+        linkedRange: player.linkedRange || null,
         sizing: null,
         availableActions: ['fold', 'call', 'raise'] // Actions de réaction
       }
@@ -356,9 +355,7 @@ export function useScenarioV3() {
         
         // Reconstruire le contexte
         let newContext: ScenarioContext = {
-          actionHistory: newHistory,
-          lastRaiser: undefined,
-          lastOpener: undefined
+          actionHistory: newHistory
         }
 
         // Recalculer le contexte
@@ -367,14 +364,14 @@ export function useScenarioV3() {
             newContext.lastRaiser = { 
               position: historyItem.position, 
               action: historyItem.action, 
-              sizing: historyItem.sizing 
+              ...(historyItem.sizing !== undefined && { sizing: historyItem.sizing })
             }
           }
           if (['limp', 'open'].includes(historyItem.action) && !newContext.lastOpener) {
             newContext.lastOpener = { 
               position: historyItem.position, 
               action: historyItem.action, 
-              sizing: historyItem.sizing 
+              ...(historyItem.sizing !== undefined && { sizing: historyItem.sizing })
             }
           }
         }
@@ -384,7 +381,8 @@ export function useScenarioV3() {
           node.id === nodeId ? {
             ...node,
             state: 'Actif' as NodeState,
-            action: undefined,
+            action: 'fold' as PokerAction,
+            sizing: null,
             availableActions: getAvailableActionsForPosition(node.position, newContext)
           } : node
         )
@@ -404,9 +402,7 @@ export function useScenarioV3() {
 
         // Reconstruire le contexte sans les actions supprimées
         let newContext: ScenarioContext = {
-          actionHistory: newHistory,
-          lastRaiser: undefined,
-          lastOpener: undefined
+          actionHistory: newHistory
         }
 
         // Recalculer lastRaiser et lastOpener
@@ -415,14 +411,14 @@ export function useScenarioV3() {
             newContext.lastRaiser = { 
               position: historyItem.position, 
               action: historyItem.action, 
-              sizing: historyItem.sizing 
+              ...(historyItem.sizing !== undefined && { sizing: historyItem.sizing })
             }
           }
           if (['limp', 'open'].includes(historyItem.action) && !newContext.lastOpener) {
             newContext.lastOpener = { 
               position: historyItem.position, 
               action: historyItem.action, 
-              sizing: historyItem.sizing 
+              ...(historyItem.sizing !== undefined && { sizing: historyItem.sizing })
             }
           }
         }
@@ -437,8 +433,8 @@ export function useScenarioV3() {
             return {
               ...node,
               state: (nodePositionIdx === nodePositionIndex ? 'Actif' : 'En attente') as NodeState,
-              action: undefined,
-              sizing: nodePositionIdx === nodePositionIndex ? node.sizing : null, // Préserver le sizing du node à modifier
+              action: 'fold' as PokerAction,
+              sizing: nodePositionIdx === nodePositionIndex ? (node.sizing ?? null) : null, // Préserver le sizing du node à modifier
               availableActions: nodePositionIdx === nodePositionIndex 
                 ? getAvailableActionsForPosition(node.position, newContext)
                 : []
@@ -482,8 +478,7 @@ export function useScenarioV3() {
       graph_data: {
         nodes: nodesWithStackSize,
         context: scenario.context,
-        tableFormat: scenario.tableFormat,
-        stackSize: scenario.stackSize
+        tableFormat: scenario.tableFormat
       }
     }
 
@@ -524,7 +519,7 @@ export function useScenarioV3() {
           masterNodeVisible: scenarioData.graph_data.nodes.length === 0,
           context: scenarioData.graph_data.context,
           tableFormat: scenarioData.graph_data.tableFormat || '6max',
-          stackSize: scenarioData.graph_data.stackSize || 100
+          stackSize: 100
         })
         setScenarioTitle(scenarioData.name)
         setCurrentScenarioId(scenarioData.id!)

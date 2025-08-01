@@ -3,9 +3,17 @@ import {
   PokerAction, 
   PokerPosition, 
   TableFormat, 
-  ActionRule,
   getTablePositions 
 } from '@/types/scenario'
+
+interface ActionRule {
+  fromAction: PokerAction | string
+  toActions: PokerAction[]
+  description?: string
+  createsNewNode?: boolean
+  targetPosition?: any
+  skipNode?: boolean
+}
 
 // Helper pour obtenir la position suivante dans l'ordre
 export const getNextPosition = (currentPos: PokerPosition, tableFormat: TableFormat): PokerPosition | null => {
@@ -81,7 +89,7 @@ export const ACTION_SUCCESSION_RULES: ActionRule[] = [
     fromAction: 'vs_3bet',
     toActions: ['fold', '4bet', 'call'],
     createsNewNode: true,
-    targetPosition: (currentPos, tableFormat) => {
+    targetPosition: (currentPos: any, tableFormat: any) => {
       // Retourner à la position qui a 3bet pour sa réaction
       return getPreviousPosition(currentPos, tableFormat)
     }
@@ -90,7 +98,7 @@ export const ACTION_SUCCESSION_RULES: ActionRule[] = [
     fromAction: 'vs_4bet',
     toActions: ['fold', 'call'], // Pas de 5bet
     createsNewNode: true,
-    targetPosition: (currentPos, tableFormat) => {
+    targetPosition: (currentPos: any, tableFormat: any) => {
       // Retourner à la position qui a 4bet pour sa réaction
       return getPreviousPosition(currentPos, tableFormat)
     }
@@ -145,7 +153,7 @@ export const isValidActionSequence = (
 }
 
 // Cas spéciaux pour BB (Big Blind)
-export const getBBAvailableActions = (hasAction: boolean): PokerAction[] => {
+export const getBBAvailableActions = (hasAction: boolean): (PokerAction | string)[] => {
   if (!hasAction) {
     // BB sans action précédente = check possible
     return ['fold', 'call', 'check']
@@ -161,7 +169,7 @@ export const isMultiWayAction = (action: PokerAction): boolean => {
 }
 
 // Helper pour les sizings selon l'action
-export const getDefaultSizingsForAction = (action: PokerAction): string[] => {
+export const getDefaultSizingsForAction = (action: PokerAction | string): string[] => {
   switch (action) {
     case 'open':
       return ['2bb', '2.5bb', '3bb']

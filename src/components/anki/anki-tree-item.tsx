@@ -20,12 +20,12 @@ interface AnkiTreeItemProps {
   item: AnkiTreeNode
   level: number
   isSelected?: boolean
-  onSelect?: (item: AnkiTreeNode) => void
-  onToggleExpanded?: (itemId: string) => void
-  onEdit?: (item: AnkiTreeNode) => void
-  onDelete?: (item: AnkiTreeNode) => void
-  onDuplicate?: (item: AnkiTreeNode) => void
-  onCreateChild?: (parentId: string, type: 'deck') => void
+  onSelect?: ((item: AnkiTreeNode) => void) | undefined
+  onToggleExpanded?: ((itemId: string) => void) | undefined
+  onEdit?: ((item: AnkiTreeNode) => void) | undefined
+  onDelete?: ((item: AnkiTreeNode) => void) | undefined
+  onDuplicate?: ((item: AnkiTreeNode) => void) | undefined
+  onCreateChild?: ((parentId: string, type: 'deck') => void) | undefined
 }
 
 export function AnkiTreeItem({

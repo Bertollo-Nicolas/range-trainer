@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { useSortable, useDroppable } from '@dnd-kit/sortable'
+import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ChevronRight, ChevronDown, Folder, FileText, Plus, Edit, Trash2, Copy, FolderPlus } from 'lucide-react'
+import { ChevronRight, ChevronDown, Folder, FileText, Edit, Trash2, Copy, FolderPlus } from 'lucide-react'
 import { TreeItem as TreeItemType, TreeNode } from '@/types/range'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -16,7 +16,7 @@ interface TreeItemProps {
   onEdit: (item: TreeItemType) => void
   onDelete: (item: TreeItemType) => void
   onDuplicate: (item: TreeItemType) => void
-  selectedId?: string
+  selectedId?: string | undefined
 }
 
 export function TreeItem({ node, onToggle, onCreate, onSelect, onEdit, onDelete, onDuplicate, selectedId }: TreeItemProps) {

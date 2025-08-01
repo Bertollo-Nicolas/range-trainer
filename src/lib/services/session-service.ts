@@ -3,7 +3,6 @@ import { Database } from '@/types/database'
 
 type SessionRow = Database['public']['Tables']['sessions']['Row']
 type SessionInsert = Database['public']['Tables']['sessions']['Insert']
-type SessionUpdate = Database['public']['Tables']['sessions']['Update']
 type SessionHandRow = Database['public']['Tables']['session_hands']['Row']
 
 export interface SessionStats {
@@ -281,13 +280,13 @@ export class SessionService {
   private static mapRowToSession(row: SessionRow): SessionStats {
     return {
       id: row.id,
-      scenarioId: row.scenario_id || undefined,
-      scenarioName: row.scenario_name || undefined,
-      rangeId: row.range_id || undefined,
-      rangeName: row.range_name || undefined,
+      ...(row.scenario_id && { scenarioId: row.scenario_id }),
+      ...(row.scenario_name && { scenarioName: row.scenario_name }),
+      ...(row.range_id && { rangeId: row.range_id }),
+      ...(row.range_name && { rangeName: row.range_name }),
       type: row.type,
       startTime: new Date(row.start_time),
-      endTime: new Date(row.end_time),
+      endTime: row.end_time ? new Date(row.end_time) : new Date(),
       duration: row.duration,
       totalQuestions: row.total_questions,
       correctAnswers: row.correct_answers,

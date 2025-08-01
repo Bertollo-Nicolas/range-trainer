@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { DndContext, DragEndEvent, DragStartEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Plus, Search } from 'lucide-react'
-import { TreeItem as TreeItemType, Folder, Range, TreeNode } from '@/types/range'
+import { TreeItem as TreeItemType, Folder, TreeNode } from '@/types/range'
 import { TreeItem } from './tree-item'
 import { CreateItemDialog } from './create-item-dialog'
 import { Button } from '@/components/ui/button'
@@ -148,11 +148,16 @@ export function Aside({ className, onSelectItem }: AsideProps) {
     console.log('Delete item:', item)
   }
 
+  const handleDuplicate = (item: TreeItemType) => {
+    // TODO: Implement duplicate functionality
+    console.log('Duplicate item:', item)
+  }
+
   const handleDragStart = (event: DragStartEvent) => {
     console.log('Drag started:', event.active.id)
   }
 
-  const handleDragOver = (event: DragOverEvent) => {
+  const handleDragOver = () => {
     // Optionnel: feedback visuel pendant le survol
   }
 
@@ -250,6 +255,7 @@ export function Aside({ className, onSelectItem }: AsideProps) {
                   onSelect={handleSelect}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
+                  onDuplicate={handleDuplicate}
                   selectedId={selectedId}
                 />
               ))}

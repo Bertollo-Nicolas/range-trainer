@@ -25,7 +25,7 @@ export class ScenarioService {
   static convertFromScenarioState(scenarioState: { nodes: any[], tableFormat: string }, name: string, description?: string): ScenarioData {
     return {
       name,
-      description,
+      ...(description && { description }),
       graph_data: {
         nodes: scenarioState.nodes,
         context: { actionHistory: [] }, // Context vide pour l'instant

@@ -130,7 +130,7 @@ export function SimpleRangeLinkingModal({ open, onOpenChange, onSelectRange }: S
   const filteredItems = searchTerm
     ? items.filter(item => 
         item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (item.data?.notes && item.data.notes.toLowerCase().includes(searchTerm.toLowerCase()))
+        (item.type === 'range' && item.data?.notes && item.data.notes.toLowerCase().includes(searchTerm.toLowerCase()))
       )
     : items
 

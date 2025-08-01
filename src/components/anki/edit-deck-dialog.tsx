@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { AnkiTreeNode, AnkiDeckUpdate } from '@/types/anki'
+import { IconSelector } from './icon-selector'
 
 interface EditDeckDialogProps {
   isOpen: boolean
@@ -20,10 +21,7 @@ const PRESET_COLORS = [
   '#8B5CF6', '#06B6D4', '#EC4899', '#84CC16'
 ]
 
-const PRESET_ICONS = [
-  '📚', '🎴', '🧠', '📖', '📝', '🎯', '🔥', '⭐',
-  '🚀', '💡', '🎓', '📊', '🔬', '🎨', '🎪', '🎮'
-]
+// Icônes supprimées - utilisées maintenant dans IconSelector
 
 export function EditDeckDialog({ isOpen, onClose, onSubmit, deck }: EditDeckDialogProps) {
   const [formData, setFormData] = useState<AnkiDeckUpdate>({})
@@ -62,7 +60,7 @@ export function EditDeckDialog({ isOpen, onClose, onSubmit, deck }: EditDeckDial
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Modifier le deck</DialogTitle>
         </DialogHeader>
@@ -95,20 +93,10 @@ export function EditDeckDialog({ isOpen, onClose, onSubmit, deck }: EditDeckDial
           {/* Icône */}
           <div className="space-y-2">
             <Label>Icône</Label>
-            <div className="grid grid-cols-8 gap-2">
-              {PRESET_ICONS.map((icon) => (
-                <Button
-                  key={icon}
-                  type="button"
-                  variant={formData.icon === icon ? "default" : "outline"}
-                  size="sm"
-                  className="h-10 text-lg"
-                  onClick={() => setFormData(prev => ({ ...prev, icon }))}
-                >
-                  {icon}
-                </Button>
-              ))}
-            </div>
+            <IconSelector
+              selectedIcon={formData.icon || '📚'}
+              onIconSelect={(icon) => setFormData(prev => ({ ...prev, icon }))}
+            />
           </div>
 
           {/* Couleur */}

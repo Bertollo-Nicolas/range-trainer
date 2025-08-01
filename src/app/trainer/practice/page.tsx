@@ -78,7 +78,7 @@ function PlayerPosition({
   showActionAnimation = false,
   heroHand = null
 }: { 
-  node?: BaseNode
+  node?: BaseNode | undefined
   className: string
   isActive?: boolean
   hasPlayedAction?: boolean
@@ -199,46 +199,6 @@ function PlayerPosition({
       )}
     </div>
   )
-}
-
-// Fonction pour calculer le pot
-function calculatePot(nodes: BaseNode[]): number {
-  let pot = 1.5 // SB (0.5) + BB (1)
-  
-  // Trier les nodes par ordre de jeu pour calculer le pot correctement
-  const sortedNodes = [...nodes].sort((a, b) => {
-    const positions = ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB']
-    return positions.indexOf(a.position) - positions.indexOf(b.position)
-  })
-  
-  let currentBet = 1 // BB est la mise de base
-  
-  sortedNodes.forEach(node => {
-    if (node.action === 'open') {
-      const openSize = node.sizing || 2 // Use node sizing or 2bb default
-      pot += openSize
-      currentBet = openSize
-    }
-    else if (node.action === '3bet') {
-      const betSize = node.sizing || (currentBet * 3) // Use node sizing or 3x previous bet
-      pot += betSize
-      currentBet = betSize
-    }
-    else if (node.action === '4bet') {
-      const betSize = node.sizing || (currentBet * 2.5) // Use node sizing or 2.5x previous bet
-      pot += betSize
-      currentBet = betSize
-    }
-    else if (node.action === 'call') {
-      pot += currentBet // Call la mise actuelle
-    }
-    else if (node.action === 'limp') {
-      pot += 1 // Limp = 1bb
-    }
-    // fold adds nothing to pot
-  })
-  
-  return pot
 }
 
 // Constantes pour les cartes
@@ -472,46 +432,6 @@ function normalizeAction(action: string): string {
   return actionMap[action.toLowerCase()] || action.toLowerCase()
 }
 
-// Composant pour afficher une carte
-function CardDisplay({ card }: { card: Card }) {
-  return (
-    <div className={`inline-flex items-center justify-center w-12 h-16 rounded-lg border-2 bg-white shadow-lg ${
-      card.color === 'red' ? 'border-red-500' : 'border-gray-800'
-    }`}>
-      <div className={`text-lg font-bold ${
-        card.color === 'red' ? 'text-red-500' : 'text-gray-800'
-      }`}>
-        {card.rank}
-      </div>
-      <div className={`text-sm ${
-        card.color === 'red' ? 'text-red-500' : 'text-gray-800'
-      }`}>
-        {card.suit}
-      </div>
-    </div>
-  )
-}
-
-// Composant pour afficher une main
-function HandDisplay({ hand }: { hand: Hand }) {
-  if (!hand) return null
-  
-  return (
-    <div className="flex flex-col items-center space-y-2">
-      <div className="flex space-x-2">
-        <CardDisplay card={hand.card1} />
-        <CardDisplay card={hand.card2} />
-      </div>
-      <div className="text-lg font-bold text-primary">
-        {hand.notation}
-      </div>
-      <div className="text-xs text-muted-foreground">
-        {hand.isPair ? 'Paire' : hand.isSuited ? 'Suited' : 'Offsuited'}
-      </div>
-    </div>
-  )
-}
-
 // Generate 13x13 grid of poker hands
 function generatePokerGrid(): string[] {
   const grid: string[] = []
@@ -700,8 +620,7 @@ function StatsPanel({
   autoNext, 
   setAutoNext, 
   onNextHand, 
-  showNextButton,
-  handHistory 
+  showNextButton
 }: { 
   stats: PracticeStats
   autoNext: boolean
@@ -847,7 +766,6 @@ function PracticeContent() {
     action: string
     rangeData: any // Complete range data with editorData
   } | null>(null)
-  const [scenarioShouldStop, setScenarioShouldStop] = useState(false)
   const [currentScenarioHand, setCurrentScenarioHand] = useState<Hand | null>(null)
   const [scenarioInProgress, setScenarioInProgress] = useState(false)
   const [currentNodeRangeData, setCurrentNodeRangeData] = useState<any>(null)
@@ -883,14 +801,14 @@ function PracticeContent() {
           node: firstHero,
           range: firstHero.linkedRange.hands,
           action: firstHero.action,
-          rangeData: fullRangeData?.data || null
+          rangeData: (fullRangeData?.type === 'range' ? fullRangeData.data : null) || null
         })
         
         logger.info('First Hero identified', {
           position: firstHero.position,
           action: firstHero.action,
           rangeSize: firstHero.linkedRange.hands.length,
-          hasMixedColors: fullRangeData?.data?.editorData?.mixedColors?.length > 0
+          hasMixedColors: (fullRangeData?.type === 'range' ? fullRangeData.data?.editorData?.mixedColors?.length || 0 : 0) > 0
         }, 'Practice')
       } catch (error) {
         logger.error('Error loading range data', { error }, 'Practice')
@@ -1080,27 +998,6 @@ function PracticeContent() {
     }, 1000)
   }
 
-  const startAnimation = () => {
-    setAnimation({
-      isPlaying: true,
-      currentStep: -1,
-      currentPot: 1.5, // Reset du pot aux blinds
-      playedActions: new Set(),
-      activePosition: null,
-      waitingForHero: false
-    })
-    logger.debug('Animation started, pot reset to blinds', { pot: 1.5 }, 'Practice')
-  }
-
-  const stopAnimation = () => {
-    setAnimation(prev => ({
-      ...prev,
-      isPlaying: false,
-      activePosition: null,
-      waitingForHero: false
-    }))
-  }
-
   // Function to check if we should go to next hand
   const checkIfShouldStartNewHand = (heroStepIndex: number) => {
     // After hero decision, check following positions
@@ -1138,19 +1035,15 @@ function PracticeContent() {
     logger.debug('New scenario started, pot reset to blinds', { pot: 1.5 }, 'Practice')
   }
 
-  const resetAnimation = () => {
-    startNewHand()
-  }
-
   // Function to load available actions from a range
   const loadAvailableActions = async (node: BaseNode) => {
     try {
       if (node.linkedRange?.id) {
         const fullRange = await TreeService.getById(node.linkedRange.id)
-        const editorData = fullRange?.data?.editorData
+        const editorData = fullRange?.type === 'range' ? fullRange.data?.editorData : null
         
         // Save range data for mixed colors validation
-        setCurrentNodeRangeData(fullRange?.data || null)
+        setCurrentNodeRangeData(fullRange?.type === 'range' ? fullRange.data || null : null)
         
         if (editorData?.actions && Array.isArray(editorData.actions)) {
           const actionNames = editorData.actions.map((action: any) => action.name)
@@ -1609,7 +1502,7 @@ function PracticeContent() {
               <div className="players relative w-full h-full">
                 {/* UTG - En bas à gauche */}
                 <PlayerPosition 
-                  node={nodes.find(n => n.position === 'UTG')}
+                  node={nodes.find(n => n.position === 'UTG') || undefined}
                   className="bottom-[calc(70px/-2)] left-[20%]"
                   isActive={animation.activePosition === 'UTG'}
                   hasPlayedAction={animation.playedActions.has(nodes.find(n => n.position === 'UTG')?.id || '')}
@@ -1619,7 +1512,7 @@ function PracticeContent() {
 
                 {/* HJ - Côté gauche */}
                 <PlayerPosition 
-                  node={nodes.find(n => n.position === 'HJ')}
+                  node={nodes.find(n => n.position === 'HJ') || undefined}
                   className="left-[calc(70px/-2)] top-1/2 -translate-y-1/2"
                   isActive={animation.activePosition === 'HJ'}
                   hasPlayedAction={animation.playedActions.has(nodes.find(n => n.position === 'HJ')?.id || '')}
@@ -1629,7 +1522,7 @@ function PracticeContent() {
 
                 {/* CO - En haut à gauche */}
                 <PlayerPosition 
-                  node={nodes.find(n => n.position === 'CO')}
+                  node={nodes.find(n => n.position === 'CO') || undefined}
                   className="top-[calc(70px/-2)] left-[20%]"
                   isActive={animation.activePosition === 'CO'}
                   hasPlayedAction={animation.playedActions.has(nodes.find(n => n.position === 'CO')?.id || '')}
@@ -1639,7 +1532,7 @@ function PracticeContent() {
 
                 {/* BTN - En haut à droite */}
                 <PlayerPosition 
-                  node={nodes.find(n => n.position === 'BTN')}
+                  node={nodes.find(n => n.position === 'BTN') || undefined}
                   className="top-[calc(70px/-2)] right-[20%]"
                   isActive={animation.activePosition === 'BTN'}
                   hasPlayedAction={animation.playedActions.has(nodes.find(n => n.position === 'BTN')?.id || '')}
@@ -1649,7 +1542,7 @@ function PracticeContent() {
 
                 {/* SB - Côté droit */}
                 <PlayerPosition 
-                  node={nodes.find(n => n.position === 'SB')}
+                  node={nodes.find(n => n.position === 'SB') || undefined}
                   className="right-[calc(70px/-2)] top-1/2 -translate-y-1/2"
                   isActive={animation.activePosition === 'SB'}
                   hasPlayedAction={animation.playedActions.has(nodes.find(n => n.position === 'SB')?.id || '')}
@@ -1659,7 +1552,7 @@ function PracticeContent() {
 
                 {/* BB - En bas à droite */}
                 <PlayerPosition 
-                  node={nodes.find(n => n.position === 'BB')}
+                  node={nodes.find(n => n.position === 'BB') || undefined}
                   className="bottom-[calc(70px/-2)] right-[20%]"
                   isActive={animation.activePosition === 'BB'}
                   hasPlayedAction={animation.playedActions.has(nodes.find(n => n.position === 'BB')?.id || '')}

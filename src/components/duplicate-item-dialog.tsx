@@ -49,7 +49,7 @@ export function DuplicateItemDialog({ open, onOpenChange, item, onConfirm }: Dup
   // Générer un nom par défaut quand le dialog s'ouvre
   const handleOpenChangeWithDefault = (newOpen: boolean) => {
     if (newOpen && item) {
-      setName(`${item.name} - Copie`)
+      setName(`${item.name || 'Item'} - Copie`)
     }
     handleOpenChange(newOpen)
   }

@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { logger } from '@/utils/logger'
 import { RangeManagerImportDialog } from './range-manager-import-dialog'
-import { RangeManagerData } from '@/lib/services/range-manager-import'
+import { RangeManagerData, RangeManagerFolder, RangeManagerImportResult } from '@/lib/services/range-manager-import'
 
 interface AsideProps {
   className?: string
@@ -258,23 +258,89 @@ export function AsideDB({ className, onSelectItem, onRefreshReady }: AsideProps)
     }
   }
 
-  const handleRMImportSuccess = async (ranges: RangeManagerData[]) => {
+  const handleRMImportSuccess = async (importResult: RangeManagerImportResult) => {
     try {
-      for (const range of ranges) {
-        const newItem = {
-          name: range.name,
-          type: 'range' as const,
-          parentId: null,
-          data: { hands: range.hands }
+      let totalItems = 0
+      
+      // Créer les dossiers et leurs contenus récursivement
+      if (importResult.folders) {
+        for (const folder of importResult.folders) {
+          const createdItems = await createFolderHierarchy(folder, null)
+          totalItems += createdItems
         }
-        
-        await actions.createItem(newItem)
       }
       
-      logger.info('Range Manager import completed', { count: ranges.length }, 'AsideDB')
+      // Créer les ranges individuelles (celles qui ne sont pas dans des dossiers)
+      if (importResult.ranges) {
+          for (const range of importResult.ranges) {
+          const newItem = {
+            name: range.name,
+            type: 'range' as const,
+            parentId: null,
+            data: { 
+              hands: range.hands,
+              // Inclure l'editorData si présent pour les actions et stratégies mixtes
+              ...(range.editorData && { editorData: range.editorData })
+            }
+          }
+          
+          await actions.createItem(newItem)
+          totalItems++
+        }
+      }
+      
+      logger.info('Range Manager import completed', { 
+        totalItems,
+        folders: importResult.folders?.length || 0, 
+        ranges: importResult.ranges?.length || 0 
+      }, 'AsideDB')
     } catch (error) {
       logger.error('Error importing from Range Manager', { error }, 'AsideDB')
     }
+  }
+
+  // Fonction récursive pour créer la hiérarchie de dossiers
+  const createFolderHierarchy = async (
+    item: RangeManagerFolder | RangeManagerData, 
+    parentId: string | null
+  ): Promise<number> => {
+    let createdItems = 0
+    
+    if ('type' in item && item.type === 'folder') {
+      // Créer le dossier
+      const folderItem = {
+        name: item.name,
+        type: 'folder' as const,
+        parentId,
+        data: {}
+      }
+      
+      const createdFolder = await actions.createItem(folderItem)
+      createdItems++
+      
+      // Créer récursivement tous les enfants
+      for (const child of item.children) {
+        const childItems = await createFolderHierarchy(child, createdFolder.id)
+        createdItems += childItems
+      }
+    } else {
+      // Créer la range
+      const rangeItem = {
+        name: item.name,
+        type: 'range' as const,
+        parentId,
+        data: { 
+          hands: item.hands,
+          // Inclure l'editorData si présent pour les actions et stratégies mixtes
+          ...(item.editorData && { editorData: item.editorData })
+        }
+      }
+      
+      await actions.createItem(rangeItem)
+      createdItems++
+    }
+    
+    return createdItems
   }
 
   // Fonction utilitaire pour vérifier si un élément est descendant d'un autre

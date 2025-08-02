@@ -4,6 +4,18 @@ export interface RangeManagerData {
   hands: string[]
   notes?: string
   position?: string
+  editorData?: {
+    title: string
+    actions: Array<{id: string, name: string, color: string}>
+    handActions: Array<{handId: string, actionId?: string, mixedColorId?: string}>
+    mixedColors: Array<{id: string, actions: Array<{actionId: string, percentage: number}>}>
+  }
+}
+
+export interface RangeManagerFolder {
+  name: string
+  type: 'folder'
+  children: (RangeManagerFolder | RangeManagerData)[]
 }
 
 export interface RangeManagerImportResult {
@@ -11,6 +23,7 @@ export interface RangeManagerImportResult {
   failed: number
   errors: string[]
   ranges: RangeManagerData[]
+  folders: RangeManagerFolder[]
 }
 
 export class RangeManagerImportService {
@@ -20,10 +33,18 @@ export class RangeManagerImportService {
       success: 0,
       failed: 0,
       errors: [],
-      ranges: []
+      ranges: [],
+      folders: []
     }
 
     try {
+      // D'abord, essayer de parser comme JSON (format Range Manager export)
+      const jsonResult = this.parseRangeManagerJSON(content)
+      
+      if (jsonResult.ranges.length > 0 || jsonResult.folders.length > 0) {
+        return jsonResult
+      }
+
       // Nettoyer le contenu - supprimer les caractères indésirables
       const cleanContent = content
         .replace(/\r\n/g, '\n')
@@ -280,7 +301,31 @@ export class RangeManagerImportService {
         .map(line => line.trim())
         .filter(line => line.length > 0)
 
-      // Chercher toutes les mains dans le texte
+      // Stratégie 1: Détecter les ranges par patterns de séparation
+      const rangesByPattern = this.parseByPatternDetection(lines)
+      if (rangesByPattern.length > 1) {
+        result.ranges = rangesByPattern
+        result.success = rangesByPattern.length
+        return result
+      }
+
+      // Stratégie 2: Détecter par blocs de mains séparés par des lignes vides
+      const rangesByBlocks = this.parseByHandBlocks(content)
+      if (rangesByBlocks.length > 1) {
+        result.ranges = rangesByBlocks
+        result.success = rangesByBlocks.length
+        return result
+      }
+
+      // Stratégie 3: Parsing ligne par ligne amélioré
+      const rangesByImprovedParsing = this.parseWithImprovedLineDetection(lines)
+      if (rangesByImprovedParsing.length > 0) {
+        result.ranges = rangesByImprovedParsing
+        result.success = rangesByImprovedParsing.length
+        return result
+      }
+
+      // Fallback: Au moins récupérer toutes les mains trouvées
       const allHands: string[] = []
       const handPattern = /\b([AKQJT2-9]{2}[so]?)\b/g
       
@@ -293,7 +338,6 @@ export class RangeManagerImportService {
       }
 
       if (allHands.length > 0) {
-        // Si on trouve des mains mais pas de structure claire, créer une range générique
         result.ranges.push({
           name: 'Range importée',
           hands: allHands.sort(),
@@ -302,57 +346,394 @@ export class RangeManagerImportService {
         result.success = 1
       }
 
-      // Essayer de détecter des sections basées sur des lignes non-vides
-      let currentRangeName = ''
-      let currentHands: string[] = []
-      
-      for (const line of lines) {
-        // Si la ligne contient beaucoup de mains, la traiter comme des mains
-        const lineHands = this.parseHands(line)
-        if (lineHands.length > 0) {
-          currentHands.push(...lineHands)
-        } else if (line.length < 100 && currentHands.length > 0) {
-          // Ligne courte après des mains = potentiellement un nouveau titre
-          if (currentRangeName && currentHands.length > 0) {
-            const uniqueHands = [...new Set(currentHands)].sort()
-            result.ranges.push({
-              name: currentRangeName,
-              hands: uniqueHands
-            })
-          }
-          currentRangeName = line
-          currentHands = []
-        } else if (!currentRangeName && line.length < 100) {
-          // Première ligne courte = titre potentiel
-          currentRangeName = line
-        }
-      }
-
-      // Ajouter la dernière range si nécessaire
-      if (currentRangeName && currentHands.length > 0) {
-        const uniqueHands = [...new Set(currentHands)].sort()
-        result.ranges.push({
-          name: currentRangeName,
-          hands: uniqueHands
-        })
-      }
-
-      // Déduplication des ranges si nécessaire
-      if (result.ranges.length > 1) {
-        result.ranges = result.ranges.filter((range, index) => 
-          index === 0 || range.hands.length !== result.ranges[0].hands.length ||
-          !range.hands.every(hand => result.ranges[0].hands.includes(hand))
-        )
-      }
-
-      result.success = result.ranges.length
-
     } catch (error) {
       result.errors.push(`Erreur de parsing permissif: ${error instanceof Error ? error.message : 'Erreur inconnue'}`)
       result.failed = 1
     }
 
     return result
+  }
+
+  // Stratégie 1: Détecter les ranges par patterns typiques
+  private static parseByPatternDetection(lines: string[]): RangeManagerData[] {
+    const ranges: RangeManagerData[] = []
+    let currentRange: Partial<RangeManagerData> = {}
+    let currentHands: string[] = []
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      const nextLine = i < lines.length - 1 ? lines[i + 1] : ''
+
+      // Détecter un nouveau titre de range
+      if (this.isPotentialRangeTitle(line, nextLine)) {
+        // Sauvegarder la range précédente
+        if (currentRange.name && currentHands.length > 0) {
+          ranges.push({
+            name: currentRange.name,
+            hands: [...new Set(currentHands)].sort(),
+            ...(currentRange.notes && { notes: currentRange.notes })
+          })
+        }
+
+        // Commencer une nouvelle range
+        currentRange = { name: line }
+        currentHands = []
+        continue
+      }
+
+      // Collecter les mains
+      const lineHands = this.parseHands(line)
+      if (lineHands.length > 0) {
+        currentHands.push(...lineHands)
+      }
+    }
+
+    // Ajouter la dernière range
+    if (currentRange.name && currentHands.length > 0) {
+      ranges.push({
+        name: currentRange.name,
+        hands: [...new Set(currentHands)].sort(),
+        ...(currentRange.notes && { notes: currentRange.notes })
+      })
+    }
+
+    return ranges
+  }
+
+  // Stratégie 2: Parser par blocs de mains séparés
+  private static parseByHandBlocks(content: string): RangeManagerData[] {
+    const ranges: RangeManagerData[] = []
+    
+    // Diviser le contenu par double saut de ligne ou lignes vides multiples
+    const blocks = content.split(/\n\s*\n/).filter(block => block.trim().length > 0)
+    
+    if (blocks.length <= 1) return []
+
+    for (let i = 0; i < blocks.length; i++) {
+      const block = blocks[i].trim()
+      const blockLines = block.split('\n').map(l => l.trim()).filter(l => l.length > 0)
+      
+      if (blockLines.length === 0) continue
+
+      const allHands: string[] = []
+      let potentialName = ''
+
+      // Chercher les mains dans ce bloc
+      for (const line of blockLines) {
+        const lineHands = this.parseHands(line)
+        if (lineHands.length > 0) {
+          allHands.push(...lineHands)
+        } else if (line.length < 100 && !potentialName) {
+          potentialName = line
+        }
+      }
+
+      if (allHands.length > 0) {
+        ranges.push({
+          name: potentialName || `Range ${i + 1}`,
+          hands: [...new Set(allHands)].sort()
+        })
+      }
+    }
+
+    return ranges
+  }
+
+  // Stratégie 3: Parsing amélioré ligne par ligne
+  private static parseWithImprovedLineDetection(lines: string[]): RangeManagerData[] {
+    const ranges: RangeManagerData[] = []
+    let currentRange: Partial<RangeManagerData> = {}
+    let currentHands: string[] = []
+    let handsSinceLastTitle = 0
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      const lineHands = this.parseHands(line)
+
+      if (lineHands.length > 0) {
+        currentHands.push(...lineHands)
+        handsSinceLastTitle += lineHands.length
+      } else {
+        // Ligne sans mains - potentiel titre
+        const isTitle = this.isLikelyTitle(line, currentHands.length, handsSinceLastTitle)
+        
+        if (isTitle && currentRange.name && currentHands.length > 0) {
+          // Sauvegarder la range actuelle
+          ranges.push({
+            name: currentRange.name,
+            hands: [...new Set(currentHands)].sort()
+          })
+          
+          // Commencer une nouvelle range
+          currentRange = { name: line }
+          currentHands = []
+          handsSinceLastTitle = 0
+        } else if (!currentRange.name) {
+          // Premier titre potentiel
+          currentRange = { name: line }
+        }
+      }
+    }
+
+    // Ajouter la dernière range
+    if (currentRange.name && currentHands.length > 0) {
+      ranges.push({
+        name: currentRange.name,
+        hands: [...new Set(currentHands)].sort()
+      })
+    }
+
+    return ranges
+  }
+
+  // Améliorer la détection des titres potentiels
+  private static isPotentialRangeTitle(line: string, nextLine: string): boolean {
+    // Ligne courte suivie d'une ligne avec des mains
+    if (line.length < 80 && nextLine) {
+      const nextLineHands = this.parseHands(nextLine)
+      if (nextLineHands.length > 0) return true
+    }
+
+    // Patterns classiques de titres
+    const titlePatterns = [
+      /^(UTG|EP|MP|CO|BTN|SB|BB|LJ|HJ)/i,
+      /^(Open|Call|3bet|4bet|Fold|Raise|Check)/i,
+      /^(Range|Hand|Combo)/i,
+      /^\d+\.\s*/,
+      /^[A-Z][A-Za-z\s]*:?\s*$/,
+      /vs\s+(UTG|EP|MP|CO|BTN|SB|BB)/i
+    ]
+
+    return titlePatterns.some(pattern => pattern.test(line)) && !this.isHandsLine(line)
+  }
+
+  // Détecter si une ligne est probablement un titre
+  private static isLikelyTitle(line: string, currentHandsCount: number, handsSinceLastTitle: number): boolean {
+    // Si on a déjà collecté des mains et qu'on trouve une ligne courte
+    if (currentHandsCount > 0 && handsSinceLastTitle > 5 && line.length < 80) {
+      return !this.isHandsLine(line)
+    }
+
+    return false
+  }
+
+  // Parser le format JSON de Range Manager
+  private static parseRangeManagerJSON(content: string): RangeManagerImportResult {
+    const result: RangeManagerImportResult = {
+      success: 0,
+      failed: 0,
+      errors: [],
+      ranges: [],
+      folders: []
+    }
+
+    try {
+      const jsonData = JSON.parse(content)
+      
+      if (!jsonData.categories) {
+        throw new Error('Format JSON invalide - pas de propriété "categories"')
+      }
+
+      // Parser la structure hiérarchique depuis la racine
+      const rootCategory = jsonData.categories.root
+      
+      if (rootCategory && rootCategory.children) {
+        for (const childId of rootCategory.children) {
+          const parsed = this.parseCategory(childId, jsonData.categories, 0)
+          
+          if (parsed) {
+            if (parsed.type === 'folder') {
+              result.folders.push(parsed as RangeManagerFolder)
+              // Compter les ranges dans le dossier
+              const rangeCount = this.countRangesInFolder(parsed as RangeManagerFolder)
+              result.success += rangeCount
+            } else {
+              result.ranges.push(parsed as RangeManagerData)
+              result.success++
+            }
+          }
+        }
+      }
+
+
+      if (result.ranges.length === 0 && result.folders.length === 0) {
+        result.errors.push('Aucune range ou dossier trouvé dans le fichier JSON Range Manager')
+        result.failed = 1
+      }
+
+    } catch (error) {
+      // Ce n'est pas un JSON valide ou pas le bon format
+      // On retourne un résultat vide pour que le parser texte prenne le relais
+      return {
+        success: 0,
+        failed: 0,
+        errors: [],
+        ranges: [],
+        folders: []
+      }
+    }
+
+    return result
+  }
+
+  // Parser une catégorie récursivement
+  private static parseCategory(categoryId: string, categories: any, depth: number = 0): RangeManagerFolder | RangeManagerData | null {
+    if (depth > 10) {
+      console.error('Max recursion depth reached for category:', categoryId)
+      return null
+    }
+    const category = categories[categoryId]
+    if (!category) {
+      return null
+    }
+
+    // Si c'est une catégorie avec des enfants (dossier)
+    if (category.children && Array.isArray(category.children)) {
+      const folder: RangeManagerFolder = {
+        name: category.name || 'Dossier sans nom',
+        type: 'folder',
+        children: []
+      }
+
+      for (const childId of category.children) {
+        try {
+          const childParsed = this.parseCategory(childId, categories, depth + 1)
+          if (childParsed) {
+            folder.children.push(childParsed)
+          }
+        } catch (error) {
+          console.error('Error parsing child:', childId, error)
+        }
+      }
+
+      return folder
+    }
+    
+    // Si c'est une catégorie avec des onglets (contient des ranges)
+    else if (category.tabList && category.tabs) {
+      const folder: RangeManagerFolder = {
+        name: category.name || 'Catégorie sans nom',
+        type: 'folder',
+        children: []
+      }
+
+      for (const tabId of category.tabList) {
+        const tab = category.tabs[tabId]
+        
+        if (tab && tab.rangeList) {
+          // Créer une range avec actions et mixed strategies complètes
+          const actions: Array<{id: string, name: string, color: string}> = []
+          const handActions: Array<{handId: string, actionId?: string, mixedColorId?: string}> = []
+          const mixedColors: Array<{id: string, actions: Array<{actionId: string, percentage: number}>}> = []
+
+          // Mapper les IDs d'actions à leurs informations
+          const actionMap = new Map([
+            ["c177f3ba6c0f6752f683815847a301a4", { name: "OPEN", color: "#6666ff" }],
+            ["000r", { name: "CALL", color: "#4CAF50" }],
+            ["8cf904d5d5e21ec3bef6260df3c9dbfb", { name: "RAISE", color: "#FF9800" }],
+            // Ignore FOLD: "1ecb745db61f02a1866b24e2858d1158"
+          ])
+
+          let mixedColorIdCounter = Date.now()
+
+          for (const range of tab.rangeList) {
+            // Filtrer les actions FOLD - l'ID "1ecb745db61f02a1866b24e2858d1158" correspond aux FOLD
+            if (range.id === "1ecb745db61f02a1866b24e2858d1158") {
+              // Ignorer les actions FOLD
+              continue
+            }
+
+            const actionInfo = actionMap.get(range.id)
+            if (!actionInfo) continue
+
+            // Ajouter l'action si elle n'existe pas déjà
+            if (!actions.find(a => a.id === range.id)) {
+              actions.push({
+                id: range.id,
+                name: actionInfo.name,
+                color: actionInfo.color
+              })
+            }
+            
+            if (range.hands && Array.isArray(range.hands)) {
+              for (const handStr of range.hands) {
+                const [hand, probabilityStr] = handStr.split(':')
+                const normalizedHand = this.normalizeHand(hand)
+                
+                if (!normalizedHand) continue
+
+                if (probabilityStr) {
+                  // C'est une stratégie mixte
+                  const probability = parseFloat(probabilityStr)
+                  if (probability > 0 && probability < 1) {
+                    const mixedColorId = `mixed-${mixedColorIdCounter++}`
+                    const percentage = Math.round(probability * 100)
+                    
+                    handActions.push({
+                      handId: normalizedHand,
+                      mixedColorId: mixedColorId
+                    })
+
+                    mixedColors.push({
+                      id: mixedColorId,
+                      actions: [{
+                        actionId: range.id,
+                        percentage: percentage
+                      }]
+                    })
+                  } else if (probability === 1) {
+                    // 100% = action pure
+                    handActions.push({
+                      handId: normalizedHand,
+                      actionId: range.id
+                    })
+                  }
+                  // Si probability === 0, on ignore (pas joué)
+                } else {
+                  // Pas de probabilité = action pure
+                  handActions.push({
+                    handId: normalizedHand,
+                    actionId: range.id
+                  })
+                }
+              }
+            }
+          }
+
+          if (actions.length > 0 && handActions.length > 0) {
+            const rangeData: any = {
+              name: tab.name || 'Range sans nom',
+              hands: handActions.map(ha => ha.handId), // Pour le format legacy
+              notes: `Importé depuis ${category.name} - Range Manager avec actions complètes`,
+              editorData: {
+                title: tab.name || 'Range sans nom',
+                actions: actions,
+                handActions: handActions,
+                mixedColors: mixedColors
+              }
+            }
+            folder.children.push(rangeData)
+          }
+        }
+      }
+
+      return folder.children.length > 0 ? folder : null
+    }
+
+    return null
+  }
+
+  // Compter les ranges dans un dossier récursivement
+  private static countRangesInFolder(folder: RangeManagerFolder): number {
+    let count = 0
+    for (const child of folder.children) {
+      if (child.type === 'folder') {
+        count += this.countRangesInFolder(child as RangeManagerFolder)
+      } else {
+        count++
+      }
+    }
+    return count
   }
 
   // Convertir au format Range Trainer

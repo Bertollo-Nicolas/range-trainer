@@ -10,8 +10,8 @@ import { MixedColorManager } from './mixed-color-manager'
 import { cn } from '@/lib/utils'
 
 interface ActionPanelProps {
-  actions: Action[]
-  mixedColors: MixedColor[]
+  actions?: Action[]
+  mixedColors?: MixedColor[]
   activeActionId: string
   activeMixedColorId: string | null
   onActionsChange: (actions: Action[]) => void
@@ -39,22 +39,24 @@ export function ActionPanel({
       color: '#6b994c',
       isActive: false
     }
-    onActionsChange([...actions, newAction])
+    onActionsChange([...(actions || []), newAction])
     // Auto-sélectionner la nouvelle action
     onActiveActionChange(newAction.id)
     onActiveMixedColorChange(null)
   }
 
   const updateAction = (actionId: string, updates: Partial<Action>) => {
-    onActionsChange(actions.map(action => 
-      action.id === actionId ? { ...action, ...updates } : action
-    ))
+    if (actions) {
+      onActionsChange(actions.map(action => 
+        action.id === actionId ? { ...action, ...updates } : action
+      ))
+    }
   }
 
   const deleteAction = (actionId: string) => {
-    if (actions.length <= 1) return
+    if (!actions || actions.length <= 1) return
     onActionsChange(actions.filter(action => action.id !== actionId))
-    if (activeActionId === actionId) {
+    if (activeActionId === actionId && actions && actions.length > 0) {
       onActiveActionChange(actions[0].id)
     }
   }
@@ -73,7 +75,7 @@ export function ActionPanel({
     <div className="space-y-6">
       {/* Actions Section */}
       <div className="space-y-4">
-        {actions.map((action, index) => (
+        {actions?.map((action, index) => (
           <div
             key={action.id}
             className={cn(
@@ -100,7 +102,7 @@ export function ActionPanel({
 
             {/* Name Input */}
             <Input
-              value={action.name}
+              value={action.name || ''}
               onChange={(e) => updateAction(action.id, { name: e.target.value })}
               placeholder="Nom de l'action"
               className="flex-1 h-8 text-sm"
@@ -135,8 +137,8 @@ export function ActionPanel({
       <div className="space-y-4">
         <h4 className="text-lg font-semibold">Mixed Colors</h4>
         <MixedColorManager
-          actions={actions}
-          mixedColors={mixedColors}
+          actions={actions || []}
+          mixedColors={mixedColors || []}
           activeMixedColorId={activeMixedColorId}
           onMixedColorsChange={onMixedColorsChange}
           onSelectMixedColor={selectMixedColor}
@@ -148,7 +150,7 @@ export function ActionPanel({
         <ColorPicker
           isOpen={true}
           onClose={() => setColorPickerOpen(null)}
-          color={actions.find(a => a.id === colorPickerOpen)?.color || '#6b994c'}
+          color={actions?.find(a => a.id === colorPickerOpen)?.color || '#6b994c'}
           onColorChange={(color) => {
             if (colorPickerOpen) {
               updateAction(colorPickerOpen, { color })

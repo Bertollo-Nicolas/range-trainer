@@ -71,7 +71,7 @@ export default function AnkiPage() {
   if (!isClient) {
     return (
       <div className="flex h-screen bg-background">
-        <div className="w-80 flex-shrink-0 bg-muted"></div>
+        <div className="hidden lg:block w-80 flex-shrink-0 bg-muted"></div>
         <div className="flex-1 flex items-center justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
         </div>
@@ -80,9 +80,9 @@ export default function AnkiPage() {
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Sidebar */}
-      <div className="w-80 flex-shrink-0">
+    <div className="flex flex-col lg:flex-row h-screen bg-background">
+      {/* Sidebar - Hidden on mobile, shown on desktop */}
+      <div className="hidden lg:block w-80 flex-shrink-0">
         <AnkiSidebar 
           onSelectDeck={handleSelectDeck}
           onRefreshReady={handleRefreshReady}
@@ -102,7 +102,7 @@ export default function AnkiPage() {
               />
             )}
             {viewMode === 'cards' && (
-              <div className="h-full overflow-y-auto p-6">
+              <div className="h-full overflow-y-auto p-4 lg:p-6">
                 <div className="max-w-6xl mx-auto">
                   <div className="mb-6">
                     <Button 
@@ -112,9 +112,9 @@ export default function AnkiPage() {
                     >
                       ← Retour au deck
                     </Button>
-                    <h1 className="text-3xl font-bold flex items-center gap-3">
-                      <span className="text-4xl">{selectedDeck.icon}</span>
-                      {selectedDeck.name} - Cartes
+                    <h1 className="text-2xl lg:text-3xl font-bold flex items-center gap-3">
+                      <span className="text-3xl lg:text-4xl">{selectedDeck.icon}</span>
+                      <span className="truncate">{selectedDeck.name} - Cartes</span>
                     </h1>
                   </div>
                   <CardList
@@ -134,7 +134,7 @@ export default function AnkiPage() {
               </div>
             )}
             {viewMode === 'study' && dueCards.length > 0 && (
-              <div className="h-full overflow-y-auto p-6">
+              <div className="h-full overflow-y-auto p-4 lg:p-6">
                 <StudySession
                   deck={selectedDeck}
                   cards={dueCards}
@@ -144,7 +144,7 @@ export default function AnkiPage() {
               </div>
             )}
             {viewMode === 'statistics' && (
-              <div className="h-full overflow-y-auto p-6">
+              <div className="h-full overflow-y-auto p-4 lg:p-6">
                 <DeckStatistics
                   deck={selectedDeck}
                   onClose={() => setViewMode('overview')}
@@ -163,15 +163,16 @@ export default function AnkiPage() {
 // Composant pour l'état vide
 function EmptyState() {
   return (
-    <div className="flex items-center justify-center h-full p-8">
-      <div className="text-center max-w-md">
-        <div className="text-6xl mb-4">🎴</div>
-        <h2 className="text-2xl font-bold mb-2">Bienvenue dans Anki</h2>
-        <p className="text-muted-foreground mb-6">
-          Sélectionnez un deck dans la sidebar pour commencer l'étude, ou créez votre premier deck pour débuter.
+    <div className="flex items-center justify-center h-full p-4 lg:p-8">
+      <div className="text-center max-w-md w-full">
+        <div className="text-4xl lg:text-6xl mb-4">🎴</div>
+        <h2 className="text-xl lg:text-2xl font-bold mb-2">Bienvenue dans Anki</h2>
+        <p className="text-muted-foreground mb-6 text-sm lg:text-base">
+          <span className="hidden lg:inline">Sélectionnez un deck dans la sidebar pour commencer l'étude, ou créez votre premier deck pour débuter.</span>
+          <span className="lg:hidden">Créez votre premier deck ou utilisez la navigation pour accéder aux decks existants.</span>
         </p>
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             <Card className="p-3">
               <BookOpen className="h-6 w-6 mx-auto mb-2 text-blue-500" />
               <div className="font-medium">Étude intelligente</div>
@@ -214,29 +215,29 @@ function DeckView({
   return (
     <div className="flex flex-col h-full">
       {/* Header du deck */}
-      <div className="border-b p-6">
-        <div className="flex items-center justify-between">
+      <div className="border-b p-4 lg:p-6">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="text-3xl">{deck.icon}</span>
-            <div>
-              <h1 className="text-2xl font-bold">{deck.name}</h1>
+            <span className="text-2xl lg:text-3xl">{deck.icon}</span>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl lg:text-2xl font-bold truncate">{deck.name}</h1>
               {deck.description && (
-                <p className="text-muted-foreground">{deck.description}</p>
+                <p className="text-muted-foreground text-sm lg:text-base truncate">{deck.description}</p>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="flex items-center gap-1">
+          <div className="flex items-center gap-2 lg:gap-3 flex-wrap">
+            <Badge variant="outline" className="flex items-center gap-1 text-xs">
               <span className="w-2 h-2 rounded-full bg-blue-500"></span>
               {deck.cardCount} cartes
             </Badge>
             {deck.dueCards > 0 && (
-              <Badge variant="destructive">
+              <Badge variant="destructive" className="text-xs">
                 {deck.dueCards} à réviser
               </Badge>
             )}
             {deck.newCards > 0 && (
-              <Badge className="bg-green-600">
+              <Badge className="bg-green-600 text-xs">
                 {deck.newCards} nouvelles
               </Badge>
             )}
@@ -245,7 +246,7 @@ function DeckView({
       </div>
 
       {/* Contenu principal */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-4 lg:p-6">
         <div className="max-w-4xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Zone d'étude */}

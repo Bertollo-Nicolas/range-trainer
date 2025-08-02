@@ -63,7 +63,7 @@ export class TreeService {
       ...(item.type === 'range' && { 
         hands: (item as any).data?.hands || [],
         notes: (item as any).data?.notes || null,
-        editor_data: (item as any).data?.editorData || null
+        data: (item as any).data || {}
       })
     }
 
@@ -91,12 +91,20 @@ export class TreeService {
       ...(updates.type === 'folder' && updates.hasOwnProperty('isExpanded') && { 
         is_expanded: (updates as any).isExpanded 
       }),
-      ...(updates.type === 'range' && updates.data && {
-        hands: updates.data.hands,
+      ...(updates.data && {
+        hands: updates.data.hands || [],
         notes: updates.data.notes || null,
-        editor_data: updates.data.editorData || null
+        data: updates.data || {}
       })
     }
+    
+    console.log('🔍 TreeService conditions check:', {
+      hasName: !!updates.name,
+      hasParentId: updates.parentId !== undefined,
+      isFolderWithExpanded: updates.type === 'folder' && updates.hasOwnProperty('isExpanded'),
+      hasData: !!updates.data,
+      updateType: updates.type
+    })
 
     console.log('📦 Update data being sent to Supabase:', updateData)
 
@@ -274,7 +282,12 @@ export class TreeService {
         data: {
           hands: row.hands || [],
           ...(row.notes && { notes: row.notes }),
-          ...(row.editor_data && { editorData: row.editor_data })
+          ...(row.data && typeof row.data === 'object' && row.data !== null && {
+            // Si row.data contient déjà editorData, l'extraire
+            ...(row.data.editorData ? { editorData: row.data.editorData } : {}),
+            // Sinon, row.data EST l'editorData (format legacy)
+            ...(!row.data.editorData && { editorData: row.data })
+          })
         }
       }
     }

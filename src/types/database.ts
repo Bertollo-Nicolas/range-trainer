@@ -12,7 +12,8 @@ export interface Database {
           is_expanded: boolean | null
           hands: string[] | null
           notes: string | null
-          editor_data: any | null
+          data: any | null
+          description: string | null
         }
         Insert: {
           id?: string
@@ -24,7 +25,8 @@ export interface Database {
           is_expanded?: boolean | null
           hands?: string[] | null
           notes?: string | null
-          editor_data?: any | null
+          data?: any | null
+          description?: string | null
         }
         Update: {
           id?: string
@@ -36,7 +38,8 @@ export interface Database {
           is_expanded?: boolean | null
           hands?: string[] | null
           notes?: string | null
-          editor_data?: any | null
+          data?: any | null
+          description?: string | null
         }
       }
       sessions: {

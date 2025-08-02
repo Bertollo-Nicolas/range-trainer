@@ -7,13 +7,26 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
-import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react'
+import { Upload, FileText, CheckCircle, AlertCircle, Folder } from 'lucide-react'
 import { RangeManagerImportService, RangeManagerImportResult, RangeManagerData } from '@/lib/services/range-manager-import'
 
 interface RangeManagerImportDialogProps {
   isOpen: boolean
   onClose: () => void
-  onSuccess: (ranges: RangeManagerData[]) => void
+  onSuccess: (importResult: RangeManagerImportResult) => void
+}
+
+// Fonction utilitaire pour compter les ranges dans un dossier
+const countRangesInFolder = (folder: any): number => {
+  let count = 0
+  for (const child of folder.children || []) {
+    if (child.type === 'folder') {
+      count += countRangesInFolder(child)
+    } else {
+      count++
+    }
+  }
+  return count
 }
 
 export function RangeManagerImportDialog({ isOpen, onClose, onSuccess }: RangeManagerImportDialogProps) {
@@ -46,9 +59,9 @@ export function RangeManagerImportDialog({ isOpen, onClose, onSuccess }: RangeMa
   }
 
   const handleImport = () => {
-    if (!parseResult || parseResult.ranges.length === 0) return
+    if (!parseResult || parseResult.success === 0) return
     
-    onSuccess(parseResult.ranges)
+    onSuccess(parseResult)
     handleClose()
   }
 
@@ -130,6 +143,16 @@ export function RangeManagerImportDialog({ isOpen, onClose, onSuccess }: RangeMa
                           {parseResult.success} range{parseResult.success > 1 ? 's' : ''} trouvée{parseResult.success > 1 ? 's' : ''}
                         </Badge>
                       )}
+                      {parseResult.folders && parseResult.folders.length > 0 && (
+                        <Badge variant="default" className="bg-blue-600">
+                          {parseResult.folders.length} dossier{parseResult.folders.length > 1 ? 's' : ''}
+                        </Badge>
+                      )}
+                      {parseResult.ranges && parseResult.ranges.length > 0 && (
+                        <Badge variant="default" className="bg-orange-600">
+                          {parseResult.ranges.length} range{parseResult.ranges.length > 1 ? 's' : ''} individuelle{parseResult.ranges.length > 1 ? 's' : ''}
+                        </Badge>
+                      )}
                       {parseResult.failed > 0 && (
                         <Badge variant="destructive">
                           {parseResult.failed} erreur{parseResult.failed > 1 ? 's' : ''}
@@ -138,7 +161,7 @@ export function RangeManagerImportDialog({ isOpen, onClose, onSuccess }: RangeMa
                     </div>
 
                     {/* Aperçu des ranges trouvées */}
-                    {parseResult.ranges.length > 0 && (
+                    {parseResult.ranges && parseResult.ranges.length > 0 && (
                       <div className="space-y-2 w-full">
                         <div className="font-medium text-sm">Ranges détectées :</div>
                         <div className="max-h-40 overflow-y-auto space-y-1 w-full">
@@ -154,6 +177,26 @@ export function RangeManagerImportDialog({ isOpen, onClose, onSuccess }: RangeMa
                               <div className="text-xs text-muted-foreground ml-2 flex-shrink-0">
                                 {range.hands.slice(0, 3).join(', ')}
                                 {range.hands.length > 3 && '...'}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Aperçu des dossiers trouvés */}
+                    {parseResult.folders && parseResult.folders.length > 0 && (
+                      <div className="space-y-2 w-full">
+                        <div className="font-medium text-sm">Dossiers détectés :</div>
+                        <div className="max-h-40 overflow-y-auto space-y-1 w-full">
+                          {parseResult.folders.map((folder, index) => (
+                            <div key={index} className="p-2 bg-muted/30 rounded text-sm w-full">
+                              <div className="font-medium flex items-center gap-1">
+                                <Folder className="h-3 w-3" />
+                                {folder.name}
+                              </div>
+                              <div className="text-xs text-muted-foreground ml-4 mt-1">
+                                {countRangesInFolder(folder)} range{countRangesInFolder(folder) > 1 ? 's' : ''}
                               </div>
                             </div>
                           ))}
@@ -187,10 +230,11 @@ export function RangeManagerImportDialog({ isOpen, onClose, onSuccess }: RangeMa
               Annuler
             </Button>
             
-            {parseResult && parseResult.ranges.length > 0 && (
+            {parseResult && parseResult.success > 0 && (
               <Button onClick={handleImport} className="bg-green-600 hover:bg-green-700">
                 <Upload className="h-4 w-4 mr-2" />
-                Importer {parseResult.ranges.length} range{parseResult.ranges.length > 1 ? 's' : ''}
+                Importer {parseResult.success} range{parseResult.success > 1 ? 's' : ''}
+                {(parseResult.folders?.length || 0) > 0 && ` dans ${parseResult.folders.length} dossier${parseResult.folders.length > 1 ? 's' : ''}`}
               </Button>
             )}
           </div>

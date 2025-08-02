@@ -21,9 +21,10 @@ export function Navbar() {
     { href: "/stats", label: "Stats", icon: BarChart3 },
   ]
 
-  // En mobile, on ne montre que Trainer
+  // En mobile, on montre Trainer et Anki
   const mobileLinks = [
     { href: "/trainer", label: "Trainer", icon: Dumbbell },
+    { href: "/anki", label: "Anki", icon: Brain },
   ]
 
   const NavLink = ({ href, label, icon: Icon, mobile = false }: { 

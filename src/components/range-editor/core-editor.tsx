@@ -1,15 +1,15 @@
 'use client'
 
-import { useState, useEffect, forwardRef, useImperativeHandle } from 'react'
+import { useState, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react'
 import { Save, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { RangeTable } from './range-table'
 import { ActionPanel } from './action-panel'
-import { UnsavedChangesDialog } from './unsaved-changes-dialog'
 import { RangeEditorData, Action, MixedColor, HandAction, DEFAULT_ACTION } from '@/types/range-editor'
 import { TreeItem } from '@/types/range'
 import { TreeService } from '@/lib/services/tree-service'
+import { EditorToaster, useEditorSaveEvent } from './editor-toaster'
 import { cn } from '@/lib/utils'
 
 interface CoreEditorProps {
@@ -37,51 +37,18 @@ export const CoreEditor = forwardRef<CoreEditorRef, CoreEditorProps>(function Co
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
-  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  // Afficher la modal quand il y a un pending range selection
+  // Auto-switch vers la nouvelle range sans modal (plus fluide)
   useEffect(() => {
-    if (pendingRangeSelection && hasUnsavedChanges) {
-      setShowUnsavedDialog(true)
+    if (pendingRangeSelection) {
+      // Passer directement à la nouvelle range
+      onRangeSelectionConfirmed?.(pendingRangeSelection)
     }
-  }, [pendingRangeSelection, hasUnsavedChanges])
+  }, [pendingRangeSelection, onRangeSelectionConfirmed])
 
-  // Exposer la fonction save via ref
-  useImperativeHandle(ref, () => ({
-    save: handleSave
-  }), [])
-
-  // Charger les données de la range sélectionnée
-  useEffect(() => {
-    if (selectedRange && selectedRange.type === 'range') {
-      const editorData = selectedRange.data?.editorData
-      
-      if (editorData) {
-        setTitle(editorData.title)
-        setActions(editorData.actions)
-        setMixedColors(editorData.mixedColors)
-        setHandActions(editorData.handActions)
-      } else {
-        // Reset to default if no editor data
-        setTitle(selectedRange.name)
-        setActions([DEFAULT_ACTION])
-        setMixedColors([])
-        setHandActions([])
-      }
-      setHasUnsavedChanges(false)
-      onUnsavedChanges?.(false)
-    }
-  }, [selectedRange, onUnsavedChanges])
-
-  // Tracker les changements dans le titre
-  useEffect(() => {
-    if (selectedRange && selectedRange.type === 'range' && title !== (selectedRange.data?.editorData?.title || selectedRange.name)) {
-      setHasUnsavedChanges(true)
-      onUnsavedChanges?.(true)
-    }
-  }, [title, selectedRange, onUnsavedChanges])
-
-  const handleSave = async () => {
+  // Définir handleSave avec useCallback
+  const handleSave = useCallback(async () => {
     if (!selectedRange || selectedRange.type !== 'range') {
       return
     }
@@ -93,9 +60,9 @@ export const CoreEditor = forwardRef<CoreEditorRef, CoreEditorProps>(function Co
       mixedColors
     }
     
-    
     setIsSaving(true)
     setSaveSuccess(false)
+    setError(null)
     
     try {
       // Extraire les mains sélectionnées pour les sauvegarder dans le format legacy
@@ -103,12 +70,12 @@ export const CoreEditor = forwardRef<CoreEditorRef, CoreEditorProps>(function Co
       
       const updatePayload = {
         name: title,
+        type: 'range' as const,
         data: {
           hands: selectedHands,
           editorData: data
         }
       }
-      
       
       // Mettre à jour la range avec les nouvelles données
       await TreeService.update(selectedRange.id, updatePayload)
@@ -122,10 +89,102 @@ export const CoreEditor = forwardRef<CoreEditorRef, CoreEditorProps>(function Co
       // Reset success state after 2 seconds
       setTimeout(() => setSaveSuccess(false), 2000)
     } catch (error) {
+      console.error('Save error:', error)
+      setError(error instanceof Error ? error.message : 'Unknown error')
     } finally {
       setIsSaving(false)
     }
-  }
+  }, [selectedRange, title, handActions, actions, mixedColors, onUnsavedChanges, onSave, onRangeUpdated])
+
+  // Hook pour écouter les événements de sauvegarde du toaster
+  useEditorSaveEvent(handleSave)
+
+  // Exposer la fonction save via ref
+  useImperativeHandle(ref, () => ({
+    save: handleSave
+  }), [handleSave])
+
+  // Charger les données de la range sélectionnée
+  useEffect(() => {
+    console.log('🔍 CoreEditor loading range:', {
+      name: selectedRange?.name,
+      type: selectedRange?.type,
+      hasData: !!selectedRange?.data,
+      hasEditorData: !!selectedRange?.data?.editorData,
+      hasValidEditorData: selectedRange?.data?.editorData && (
+        selectedRange.data.editorData.handActions?.length > 0 ||
+        selectedRange.data.editorData.actions?.length > 0 ||
+        selectedRange.data.editorData.title
+      ),
+      hasHands: !!selectedRange?.data?.hands,
+      handsCount: selectedRange?.data?.hands?.length || 0
+    })
+    
+    if (selectedRange && selectedRange.type === 'range') {
+      const editorData = selectedRange.data?.editorData
+      
+      // Vérifier si editorData contient des données complètes
+      const hasCompleteEditorData = editorData && (
+        // Priorité 1: Actions ET HandActions présents (données riches)
+        (editorData.handActions?.length > 0 && editorData.actions?.length > 0) ||
+        // Priorité 2: MixedColors présents (même si pas de handActions)
+        (editorData.mixedColors?.length > 0 && editorData.actions?.length > 0) ||
+        // Priorité 3: Au moins un titre personnalisé (pas juste le nom de la range)
+        (editorData.title && editorData.title !== selectedRange?.name) ||
+        // Fallback: Si on a au moins des actions définies
+        (editorData.actions?.length > 0)
+      )
+      
+      if (hasCompleteEditorData) {
+        console.log('📊 Loading editorData:', {
+          title: editorData.title,
+          actionsCount: editorData.actions?.length || 0,
+          mixedColorsCount: editorData.mixedColors?.length || 0,
+          handActionsCount: editorData.handActions?.length || 0,
+          sampleHandActions: editorData.handActions?.slice(0, 3)
+        })
+        setTitle(editorData.title || 'Nouvelle Range')
+        setActions(editorData.actions || [DEFAULT_ACTION])
+        setMixedColors(editorData.mixedColors || [])
+        setHandActions(editorData.handActions || [])
+      } else {
+        // Si pas d'editor data mais qu'il y a des mains dans le format legacy, les convertir
+        setTitle(selectedRange.name || 'Nouvelle Range')
+        // S'assurer que DEFAULT_ACTION est dans les actions
+        setActions([DEFAULT_ACTION])
+        setMixedColors([])
+        
+        if (selectedRange.data?.hands && Array.isArray(selectedRange.data.hands)) {
+          // Convertir les mains du format legacy vers HandActions avec DEFAULT_ACTION
+          const legacyHandActions: HandAction[] = selectedRange.data.hands.map(hand => ({
+            handId: hand,
+            actionId: DEFAULT_ACTION.id
+          }))
+          console.log('Loading imported range:', {
+            name: selectedRange.name,
+            handsCount: selectedRange.data.hands.length,
+            handActionsCount: legacyHandActions.length,
+            defaultActionId: DEFAULT_ACTION.id,
+            sampleHands: selectedRange.data.hands.slice(0, 5),
+            actionsArray: [DEFAULT_ACTION]
+          })
+          setHandActions(legacyHandActions)
+        } else {
+          setHandActions([])
+        }
+      }
+      setHasUnsavedChanges(false)
+      onUnsavedChanges?.(false)
+    }
+  }, [selectedRange, onUnsavedChanges])
+
+  // Tracker les changements dans le titre
+  useEffect(() => {
+    if (selectedRange && selectedRange.type === 'range' && title !== (selectedRange.data?.editorData?.title || selectedRange.name)) {
+      setHasUnsavedChanges(true)
+      onUnsavedChanges?.(true)
+    }
+  }, [title, selectedRange, onUnsavedChanges])
 
   const handleClear = () => {
     setHandActions([])
@@ -271,38 +330,13 @@ export const CoreEditor = forwardRef<CoreEditorRef, CoreEditorProps>(function Co
         </div>
       </div>
 
-      {/* Modal de changements non sauvegardés */}
-      <UnsavedChangesDialog
-        open={showUnsavedDialog}
-        onOpenChange={setShowUnsavedDialog}
-        onSave={handleSaveAndContinue}
-        onDiscard={handleDiscardAndContinue}
-        onCancel={handleCancelChange}
+      {/* Toaster pour les notifications */}
+      <EditorToaster
+        hasUnsavedChanges={hasUnsavedChanges}
+        isSaving={isSaving}
+        saveSuccess={saveSuccess}
+        error={error}
       />
     </div>
   )
-
-  // Handlers pour la modal
-  function handleSaveAndContinue() {
-    handleSave().then(() => {
-      setShowUnsavedDialog(false)
-      if (pendingRangeSelection) {
-        onRangeSelectionConfirmed?.(pendingRangeSelection)
-      }
-    }).catch(error => {
-      console.error('Erreur lors de la sauvegarde:', error)
-    })
-  }
-
-  function handleDiscardAndContinue() {
-    setShowUnsavedDialog(false)
-    if (pendingRangeSelection) {
-      onRangeSelectionConfirmed?.(pendingRangeSelection)
-    }
-  }
-
-  function handleCancelChange() {
-    setShowUnsavedDialog(false)
-    onRangeSelectionCancelled?.()
-  }
 })

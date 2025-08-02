@@ -5,7 +5,7 @@ import { POKER_HANDS, Action, MixedColor, HandAction, FOLD_ACTION } from '@/type
 import { cn } from '@/lib/utils'
 
 interface RangeTableProps {
-  handActions: HandAction[]
+  handActions?: HandAction[]
   actions: Action[]
   mixedColors: MixedColor[]
   onHandClick: (handId: string) => void
@@ -25,12 +25,12 @@ export function RangeTable({
   const tableRef = useRef<HTMLDivElement>(null)
 
   const getHandStyle = (handId: string) => {
-    const handAction = handActions.find(ha => ha.handId === handId)
+    const handAction = handActions?.find(ha => ha.handId === handId)
     
     if (!handAction) {
       return {
         backgroundColor: FOLD_ACTION.color,
-        color: '#666666'
+        color: 'white'
       }
     }
 
@@ -123,7 +123,7 @@ export function RangeTable({
       <div 
         className="grid grid-cols-13"
         style={{ 
-          gap: '2px',
+          gap: '0px',
           width: 'min(calc(100vh - 200px), calc(100vw - 400px))',
           height: 'min(calc(100vh - 200px), calc(100vw - 400px))'
         }}
@@ -133,12 +133,16 @@ export function RangeTable({
             const style = getHandStyle(hand)
             const isDraggedHand = draggedHands.has(hand)
             
+            const handAction = handActions?.find(ha => ha.handId === hand)
+            const action = handAction?.actionId ? actions.find(a => a.id === handAction.actionId) : null
+            const mixedColor = handAction?.mixedColorId ? mixedColors.find(mc => mc.id === handAction.mixedColorId) : null
+            
             return (
               <div
                 key={`${rowIndex}-${colIndex}`}
                 className={cn(
-                  "aspect-square rounded",
-                  "flex items-center justify-center text-xs font-medium",
+                  "aspect-square border-1 border-neutral-950",
+                  "flex flex-col items-center justify-center text-xs font-medium",
                   "cursor-pointer transition-all duration-150",
                   "hover:scale-105 hover:shadow-md",
                   isDraggedHand && "ring-2 ring-primary ring-offset-1"
@@ -146,8 +150,10 @@ export function RangeTable({
                 style={style}
                 onMouseDown={(e) => handleMouseDown(hand, e)}
                 onMouseEnter={() => handleMouseEnter(hand)}
+                title={`${hand}${action ? ` - ${action.name}` : ''}${mixedColor ? ` - Mixed` : ''}`}
               >
-                {hand}
+                <div className="text-xs font-bold">{hand}</div>
+                {/* Pas d'indicateurs visuels - juste la couleur de fond et le tooltip */}
               </div>
             )
           })

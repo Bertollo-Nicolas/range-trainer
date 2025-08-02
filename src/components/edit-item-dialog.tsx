@@ -19,7 +19,7 @@ export function EditItemDialog({ open, onOpenChange, item, onConfirm }: EditItem
 
   useEffect(() => {
     if (item) {
-      setName(item.name)
+      setName(item.name || '')
     }
   }, [item])
 

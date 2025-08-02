@@ -28,7 +28,7 @@ interface ValidationState {
 
 export function useValidation<T>({
   schema,
-  validateOnChange = true,
+  validateOnChange: _validateOnChange = true,
   showWarnings = true
 }: UseValidationOptions<T>) {
   const [state, setState] = useState<ValidationState>({
@@ -138,7 +138,7 @@ export function useValidation<T>({
 
         return {
           success: isValid,
-          data: isValid ? (data as T) : undefined,
+          data: (isValid ? (data as T) : undefined) as any,
           errors: criticalErrors
         }
       }

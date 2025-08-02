@@ -35,6 +35,7 @@ export function ActionPanel({
   const addAction = () => {
     const newAction: Action = {
       id: `action-${Date.now()}`,
+      type: 'custom',
       name: '',
       color: '#6b994c',
       isActive: false

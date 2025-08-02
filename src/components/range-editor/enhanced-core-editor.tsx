@@ -6,9 +6,8 @@ import { Save, RotateCcw, Undo, Redo, Settings, Keyboard, Eye, EyeOff } from 'lu
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
-import { AnimatedRangeMatrix, ANIMATION_PRESETS, useAnimationPreferences } from './animated-range-matrix'
+import { AnimatedRangeMatrix, useAnimationPreferences } from './animated-range-matrix'
 import { RangeStatsPanel, CompactRangeStats } from './range-stats-panel'
 import { ActionPanel } from './action-panel'
 import { UnsavedChangesDialog } from './unsaved-changes-dialog'
@@ -51,7 +50,7 @@ export const EnhancedCoreEditor = forwardRef<EnhancedCoreEditorRef, EnhancedCore
     const {
       loadRange,
       saveRange,
-      resetEditor,
+      resetEditor: _resetEditor,
       setTitle,
       toggleHand,
       selectMultipleHands,
@@ -72,7 +71,7 @@ export const EnhancedCoreEditor = forwardRef<EnhancedCoreEditorRef, EnhancedCore
     // Auto-save hook
     const autoSave = useAutoSave({
       data: { title, actions, mixedColors, handActions },
-      onSave: async (data) => {
+      onSave: async (_data) => {
         await saveRange()
       },
       enabled: true,
@@ -136,7 +135,7 @@ export const EnhancedCoreEditor = forwardRef<EnhancedCoreEditorRef, EnhancedCore
 
     // Handle pending range selection
     useEffect(() => {
-      setPendingRangeSelection(pendingRangeSelection)
+      setPendingRangeSelection(pendingRangeSelection || null)
     }, [pendingRangeSelection, setPendingRangeSelection])
 
     // Save to history when making changes
@@ -148,6 +147,7 @@ export const EnhancedCoreEditor = forwardRef<EnhancedCoreEditorRef, EnhancedCore
         
         return () => clearTimeout(timer)
       }
+      return () => {} // Empty cleanup function
     }, [hasUnsavedChanges, saveToHistory])
 
     const handleSave = async () => {
@@ -187,7 +187,7 @@ export const EnhancedCoreEditor = forwardRef<EnhancedCoreEditorRef, EnhancedCore
       visible: { 
         opacity: 1, 
         y: 0,
-        transition: { duration: 0.3, ease: "easeOut" }
+        transition: { duration: 0.3, ease: [0.4, 0, 0.2, 1] as any }
       }
     }
 

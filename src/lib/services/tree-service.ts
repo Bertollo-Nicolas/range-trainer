@@ -91,10 +91,10 @@ export class TreeService {
       ...(updates.type === 'folder' && updates.hasOwnProperty('isExpanded') && { 
         is_expanded: (updates as any).isExpanded 
       }),
-      ...(updates.data && {
-        hands: updates.data.hands || [],
-        notes: updates.data.notes || null,
-        data: updates.data || {}
+      ...((updates as any).data && {
+        hands: (updates as any).data.hands || [],
+        notes: (updates as any).data.notes || null,
+        data: (updates as any).data || {}
       })
     }
     
@@ -102,7 +102,7 @@ export class TreeService {
       hasName: !!updates.name,
       hasParentId: updates.parentId !== undefined,
       isFolderWithExpanded: updates.type === 'folder' && updates.hasOwnProperty('isExpanded'),
-      hasData: !!updates.data,
+      hasData: !!(updates as any).data,
       updateType: updates.type
     })
 

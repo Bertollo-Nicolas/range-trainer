@@ -40,7 +40,7 @@ export const RefactoredCoreEditor = forwardRef<RefactoredCoreEditorRef, Refactor
     const {
       loadRange,
       saveRange,
-      resetEditor,
+      resetEditor: _resetEditor,
       setTitle,
       toggleHand,
       selectMultipleHands,
@@ -58,7 +58,7 @@ export const RefactoredCoreEditor = forwardRef<RefactoredCoreEditorRef, Refactor
     // Auto-save hook
     const autoSave = useAutoSave({
       data: { title, actions, mixedColors, handActions },
-      onSave: async (data) => {
+      onSave: async (_data) => {
         await saveRange()
       },
       enabled: true,
@@ -90,7 +90,7 @@ export const RefactoredCoreEditor = forwardRef<RefactoredCoreEditorRef, Refactor
 
     // Handle pending range selection
     useEffect(() => {
-      setPendingRangeSelection(pendingRangeSelection)
+      setPendingRangeSelection(pendingRangeSelection || null)
     }, [pendingRangeSelection, setPendingRangeSelection])
 
     // Save to history when making changes
@@ -102,6 +102,7 @@ export const RefactoredCoreEditor = forwardRef<RefactoredCoreEditorRef, Refactor
         
         return () => clearTimeout(timer)
       }
+      return () => {} // Empty cleanup function
     }, [hasUnsavedChanges, saveToHistory])
 
     const handleSave = async () => {

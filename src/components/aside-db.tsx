@@ -330,9 +330,9 @@ export function AsideDB({ className, onSelectItem, onRefreshReady }: AsideProps)
         type: 'range' as const,
         parentId,
         data: { 
-          hands: item.hands,
+          hands: (item as any).hands || [],
           // Inclure l'editorData si présent pour les actions et stratégies mixtes
-          ...(item.editorData && { editorData: item.editorData })
+          ...((item as any).editorData && { editorData: (item as any).editorData })
         }
       }
       

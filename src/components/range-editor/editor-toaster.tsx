@@ -35,7 +35,7 @@ export function EditorToaster({ hasUnsavedChanges, isSaving, saveSuccess, error 
   // Toast persistant pour changements non sauvegardés (discret)
   useEffect(() => {
     if (hasUnsavedChanges && !isSaving) {
-      const toastId = toast('Unsaved changes', {
+      toast('Unsaved changes', {
         icon: <Save className="h-4 w-4" />,
         description: 'Press Ctrl+S to save',
         duration: Infinity, // Reste affiché
@@ -56,6 +56,7 @@ export function EditorToaster({ hasUnsavedChanges, isSaving, saveSuccess, error 
       }
     } else {
       toast.dismiss('unsaved-changes')
+      return () => {} // Empty cleanup function
     }
   }, [hasUnsavedChanges, isSaving])
 

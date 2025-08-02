@@ -27,7 +27,7 @@ export interface CoreEditorRef {
   save: () => Promise<void>
 }
 
-export const CoreEditor = forwardRef<CoreEditorRef, CoreEditorProps>(function CoreEditor({ selectedRange, pendingRangeSelection, onSave, onUnsavedChanges, onRangeUpdated, onRangeSelectionConfirmed, onRangeSelectionCancelled, className }, ref) {
+export const CoreEditor = forwardRef<CoreEditorRef, CoreEditorProps>(function CoreEditor({ selectedRange, pendingRangeSelection, onSave, onUnsavedChanges, onRangeUpdated, onRangeSelectionConfirmed, onRangeSelectionCancelled: _onRangeSelectionCancelled, className }, ref) {
   const [title, setTitle] = useState(selectedRange?.name || 'Nouvelle Range')
   const [actions, setActions] = useState<Action[]>([DEFAULT_ACTION])
   const [mixedColors, setMixedColors] = useState<MixedColor[]>([])
@@ -109,15 +109,15 @@ export const CoreEditor = forwardRef<CoreEditorRef, CoreEditorProps>(function Co
     console.log('🔍 CoreEditor loading range:', {
       name: selectedRange?.name,
       type: selectedRange?.type,
-      hasData: !!selectedRange?.data,
-      hasEditorData: !!selectedRange?.data?.editorData,
-      hasValidEditorData: selectedRange?.data?.editorData && (
-        selectedRange.data.editorData.handActions?.length > 0 ||
-        selectedRange.data.editorData.actions?.length > 0 ||
-        selectedRange.data.editorData.title
+      hasData: !!(selectedRange as any)?.data,
+      hasEditorData: !!(selectedRange as any)?.data?.editorData,
+      hasValidEditorData: (selectedRange as any)?.data?.editorData && (
+        (selectedRange as any).data.editorData.handActions?.length > 0 ||
+        (selectedRange as any).data.editorData.actions?.length > 0 ||
+        (selectedRange as any).data.editorData.title
       ),
-      hasHands: !!selectedRange?.data?.hands,
-      handsCount: selectedRange?.data?.hands?.length || 0
+      hasHands: !!(selectedRange as any)?.data?.hands,
+      handsCount: (selectedRange as any)?.data?.hands?.length || 0
     })
     
     if (selectedRange && selectedRange.type === 'range') {
@@ -144,7 +144,7 @@ export const CoreEditor = forwardRef<CoreEditorRef, CoreEditorProps>(function Co
           sampleHandActions: editorData.handActions?.slice(0, 3)
         })
         setTitle(editorData.title || 'Nouvelle Range')
-        setActions(editorData.actions || [DEFAULT_ACTION])
+        setActions((editorData.actions as Action[]) || [DEFAULT_ACTION])
         setMixedColors(editorData.mixedColors || [])
         setHandActions(editorData.handActions || [])
       } else {

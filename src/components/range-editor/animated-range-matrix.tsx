@@ -36,8 +36,8 @@ interface AnimatedCellProps {
 
 function AnimatedCell({
   hand,
-  row,
-  col,
+  row: _row,
+  col: _col,
   isSelected,
   color,
   onHandClick,
@@ -98,7 +98,7 @@ function AnimatedCell({
       transition: {
         duration: animationDuration,
         delay,
-        ease: "easeOut"
+        ease: [0.4, 0, 0.2, 1] as any
       }
     },
     hover: enableHoverEffects ? {
@@ -129,13 +129,12 @@ function AnimatedCell({
       style={backgroundStyle}
       variants={cellVariants}
       initial="hidden"
-      animate="visible"
+      animate={controls}
       whileHover="hover"
       whileTap="tap"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={handleClick}
-      animate={controls}
     >
       <motion.span
         className="relative z-10"
@@ -211,20 +210,6 @@ export function AnimatedRangeMatrix({
     mixedColors
   })
 
-  // Drag selection logic
-  const handleMouseDown = useCallback((handId: string, event: React.MouseEvent) => {
-    event.preventDefault()
-    setMouseDownHand(handId)
-  }, [])
-
-  const handleMouseEnter = useCallback((handId: string) => {
-    if (mouseDownHand && mouseDownHand !== handId && !isDragging) {
-      setIsDragging(true)
-      setDraggedHands(new Set([mouseDownHand, handId]))
-    } else if (isDragging) {
-      setDraggedHands(prev => new Set([...prev, handId]))
-    }
-  }, [mouseDownHand, isDragging])
 
   const handleMouseUp = useCallback(() => {
     if (isDragging && draggedHands.size > 1) {

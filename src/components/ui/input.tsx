@@ -3,12 +3,14 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 export interface InputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {}
+  extends React.InputHTMLAttributes<HTMLInputElement> {
+  // Empty interface extending React.InputHTMLAttributes
+}
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type = "text", ...props }, ref) => {
     // Filter out data-sharkid and other non-standard attributes to prevent hydration errors
-    const { 'data-sharkid': _, ...filteredProps } = props as any;
+    const { 'data-sharkid': _dataSharkId, ...filteredProps } = props as any;
     
     return (
       <input

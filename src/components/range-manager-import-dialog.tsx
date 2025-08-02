@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Upload, FileText, CheckCircle, AlertCircle, Folder } from 'lucide-react'
-import { RangeManagerImportService, RangeManagerImportResult, RangeManagerData } from '@/lib/services/range-manager-import'
+import { RangeManagerImportService, RangeManagerImportResult } from '@/lib/services/range-manager-import'
 
 interface RangeManagerImportDialogProps {
   isOpen: boolean
@@ -51,7 +51,8 @@ export function RangeManagerImportDialog({ isOpen, onClose, onSuccess }: RangeMa
         success: 0,
         failed: 1,
         errors: [error instanceof Error ? error.message : 'Erreur inconnue'],
-        ranges: []
+        ranges: [],
+        folders: []
       })
     } finally {
       setIsProcessing(false)

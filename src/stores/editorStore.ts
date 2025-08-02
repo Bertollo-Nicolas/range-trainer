@@ -288,7 +288,7 @@ export const useEditorStore = create<EditorStore>()(
           
           set({
             title: editorData.title || range.name,
-            actions: editorData.actions?.length > 0 ? editorData.actions : [DEFAULT_ACTION],
+            actions: editorData.actions?.length > 0 ? (editorData.actions as Action[]) : [DEFAULT_ACTION],
             mixedColors: editorData.mixedColors || [],
             handActions: editorData.handActions || [],
             hasUnsavedChanges: false,

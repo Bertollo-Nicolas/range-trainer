@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect, useCallback, useState, useMemo } from 'react'
+import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react'
 import { POKER_HANDS } from '@/types/poker'
 import { HandAction, EditorAction, MixedColor, CanvasRenderOptions } from '@/types/editor'
 import { useRangeCalculation } from '@/hooks/useRangeCalculation'

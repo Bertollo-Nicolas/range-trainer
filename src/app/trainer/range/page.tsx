@@ -75,8 +75,14 @@ export default function RangeTraining() {
 
     const editorData = range.data.editorData
     
-    // Charger toutes les actions de la range originale
-    const actionsToLoad = editorData.actions
+    // Charger toutes les actions de la range originale (conversion EditorAction -> Action)
+    const actionsToLoad: Action[] = editorData.actions.map((action: any) => ({
+      id: action.id,
+      type: action.type || 'custom',
+      name: action.name,
+      color: action.color,
+      isActive: action.isActive ?? true
+    }))
     
     // Créer les handActions originaux (sans mixed colors)
     const originalHandActions = editorData.handActions
@@ -409,10 +415,10 @@ export default function RangeTraining() {
 
   // Actions spéciales pour la comparaison
   const comparisonActions: Action[] = [
-    { id: 'correct', name: 'Correct', color: '#22c55e', isActive: false },
-    { id: 'wrong', name: 'Erreur', color: '#ef4444', isActive: false },
-    { id: 'missing', name: 'Manqué', color: '#f97316', isActive: false },
-    { id: 'extra', name: 'Extra', color: '#ef4444', isActive: false }
+    { id: 'correct', type: 'custom', name: 'Correct', color: '#22c55e', isActive: false },
+    { id: 'wrong', type: 'custom', name: 'Erreur', color: '#ef4444', isActive: false },
+    { id: 'missing', type: 'custom', name: 'Manqué', color: '#f97316', isActive: false },
+    { id: 'extra', type: 'custom', name: 'Extra', color: '#ef4444', isActive: false }
   ]
 
   const score = currentSession ? calculateScore() : null

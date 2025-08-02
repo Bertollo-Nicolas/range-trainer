@@ -87,10 +87,10 @@ export function useKeyboardShortcuts({
   useEffect(() => {
     const targetElement = target || document
 
-    targetElement.addEventListener('keydown', handleKeyDown)
+    targetElement.addEventListener('keydown', handleKeyDown as EventListener)
 
     return () => {
-      targetElement.removeEventListener('keydown', handleKeyDown)
+      targetElement.removeEventListener('keydown', handleKeyDown as EventListener)
     }
   }, [handleKeyDown, target])
 
@@ -360,8 +360,8 @@ export function KeyboardShortcutsHelp({
   shortcuts,
   className = ""
 }: { 
-  shortcuts: KeyboardShortcut[]
-  className?: string 
+  shortcuts: KeyboardShortcut[];
+  className?: string;
 }) {
   const enabledShortcuts = shortcuts.filter(s => s.enabled !== false && s.description)
 

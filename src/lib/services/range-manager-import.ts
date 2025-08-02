@@ -292,7 +292,8 @@ export class RangeManagerImportService {
       success: 0,
       failed: 0,
       errors: [],
-      ranges: []
+      ranges: [],
+      folders: []
     }
 
     try {
@@ -542,7 +543,7 @@ export class RangeManagerImportService {
           const parsed = this.parseCategory(childId, jsonData.categories, 0)
           
           if (parsed) {
-            if (parsed.type === 'folder') {
+            if ((parsed as any).type === 'folder') {
               result.folders.push(parsed as RangeManagerFolder)
               // Compter les ranges dans le dossier
               const rangeCount = this.countRangesInFolder(parsed as RangeManagerFolder)
@@ -727,7 +728,7 @@ export class RangeManagerImportService {
   private static countRangesInFolder(folder: RangeManagerFolder): number {
     let count = 0
     for (const child of folder.children) {
-      if (child.type === 'folder') {
+      if ((child as any).type === 'folder') {
         count += this.countRangesInFolder(child as RangeManagerFolder)
       } else {
         count++

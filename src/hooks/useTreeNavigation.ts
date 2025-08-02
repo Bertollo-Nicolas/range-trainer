@@ -61,7 +61,7 @@ export const useTreeNavigation = ({
     
     traverseTree(rootNode, (node) => {
       if (node.name.toLowerCase().includes(query) ||
-          (node.type === 'range' && node.data?.description?.toLowerCase().includes(query))) {
+          (node.type === 'range' && (node.data as any)?.description?.toLowerCase().includes(query))) {
         results.push(node)
       }
     })
@@ -254,6 +254,6 @@ function getBreadcrumbLabel(node: TreeNode): string {
     case 'action':
       return `${node.actionType} - ${node.name}`
     default:
-      return node.name
+      return (node as any).name || 'Unknown'
   }
 }

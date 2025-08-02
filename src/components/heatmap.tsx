@@ -57,9 +57,7 @@ function HeatmapCell({ hand, stats, onClick }: HeatmapCellProps) {
   )
 }
 
-interface HeatmapLegendProps {}
-
-function HeatmapLegend({}: HeatmapLegendProps) {
+function HeatmapLegend() {
   const legendItems = [
     { label: 'Aucune donnée', color: 'bg-gray-100 text-gray-400', range: '-' },
     { label: 'Parfait (0%)', color: 'bg-green-600 text-white', range: '0%' },

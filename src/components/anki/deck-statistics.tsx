@@ -15,7 +15,7 @@ import {
   Zap,
   Award
 } from 'lucide-react'
-import { AnkiService } from '@/lib/services/anki-service'
+import { AnkiServiceBridge as AnkiService } from '@/lib/services/anki-service-bridge'
 
 interface DeckStatisticsProps {
   deck: AnkiTreeNode
@@ -65,12 +65,12 @@ export function DeckStatistics({ deck, onClose }: DeckStatisticsProps) {
       
       // Calculer les stats détaillées
       const masteredCards = basicStats.totalCards - basicStats.newCards - basicStats.learningCards - basicStats.reviewCards
-      const retentionRate = curve.length > 0 ? curve[curve.length - 1]?.retention || 0 : 0
+      const retentionRate = 0 // Placeholder for FSRS bridge
       
       const detailedStats: DetailedStats = {
         ...basicStats,
         masteredCards,
-        averageEase: curve.length > 0 ? curve[curve.length - 1]?.averageEase || 2.5 : 2.5,
+        averageEase: 2.5, // Placeholder for FSRS bridge
         retentionRate,
         dailyStreak: calculateStreak(heatmap),
         totalStudyTime: calculateTotalStudyTime(heatmap),

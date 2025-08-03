@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { AnkiService } from '@/lib/services/anki-service'
+import { AnkiServiceBridge as AnkiService } from '@/lib/services/anki-service-bridge'
 import { AnkiTreeNode, AnkiDeck, AnkiDeckInsert, AnkiDeckUpdate } from '@/types/anki'
 
 interface UseAnkiDecksReturn {

@@ -6,10 +6,10 @@ import { AnkiTreeNode } from '@/types/anki'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { CardList } from '@/components/anki/card-list'
-import { StudySession } from '@/components/anki/study-session'
+import { FSRSStudySession } from '@/components/anki/fsrs-study-session'
 import { DeckStatistics } from '@/components/anki/deck-statistics'
-import { useAnkiCards } from '@/hooks/use-anki-cards'
+import { CardManager } from '@/components/anki/card-manager'
+import { useAnkiEngine } from '@/hooks/use-anki-engine'
 import { 
   BookOpen, 
   Plus,
@@ -26,7 +26,10 @@ export default function AnkiPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('overview')
   const [refreshSidebar, setRefreshSidebar] = useState<(() => void) | null>(null)
   const [isClient, setIsClient] = useState(false)
-  const { cards, dueCards, loading, actions } = useAnkiCards()
+  const { 
+    dueCards,
+    actions 
+  } = useAnkiEngine({ autoStart: false })
 
   // Éviter les problèmes d'hydratation
   useEffect(() => {
@@ -37,7 +40,6 @@ export default function AnkiPage() {
     setSelectedDeck(deck)
     setViewMode('overview')
     if (deck) {
-      actions.loadCards(deck.id)
       actions.loadDueCards(deck.id)
     }
   }
@@ -46,25 +48,29 @@ export default function AnkiPage() {
     setRefreshSidebar(() => refreshFn)
   }
 
-  const handleStartStudy = () => {
+  const handleStartStudy = async () => {
     if (selectedDeck) {
-      actions.loadDueCards(selectedDeck.id)
-      setViewMode('study')
+      try {
+        await actions.startSession(selectedDeck.id)
+        setViewMode('study')
+      } catch (err) {
+        console.error('Failed to start study session:', err)
+      }
     }
   }
 
-  const handleStartCustomStudy = () => {
-    // Pour l'étude personnalisée
-    setViewMode('study')
-  }
 
-  const handleEndStudy = () => {
-    setViewMode('overview')
-    if (selectedDeck) {
-      actions.loadCards(selectedDeck.id)
-      actions.loadDueCards(selectedDeck.id)
+  const handleEndStudy = async () => {
+    try {
+      await actions.endSession()
+      setViewMode('overview')
+      if (selectedDeck) {
+        await actions.loadDueCards(selectedDeck.id)
+      }
+      refreshSidebar?.()
+    } catch (err) {
+      console.error('Failed to end study session:', err)
     }
-    refreshSidebar?.()
   }
 
   // Affichage de loading pendant l'hydratation
@@ -95,7 +101,8 @@ export default function AnkiPage() {
           <div className="h-full">
             {viewMode === 'overview' && (
               <DeckView 
-                deck={selectedDeck} 
+                deck={selectedDeck}
+                dueCards={dueCards}
                 onViewCards={() => setViewMode('cards')}
                 onStartStudy={handleStartStudy}
                 onViewStatistics={() => setViewMode('statistics')}
@@ -104,42 +111,18 @@ export default function AnkiPage() {
             {viewMode === 'cards' && (
               <div className="h-full overflow-y-auto p-4 lg:p-6">
                 <div className="max-w-6xl mx-auto">
-                  <div className="mb-6">
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setViewMode('overview')}
-                      className="mb-4"
-                    >
-                      ← Retour au deck
-                    </Button>
-                    <h1 className="text-2xl lg:text-3xl font-bold flex items-center gap-3">
-                      <span className="text-3xl lg:text-4xl">{selectedDeck.icon}</span>
-                      <span className="truncate">{selectedDeck.name} - Cartes</span>
-                    </h1>
-                  </div>
-                  <CardList
+                  <CardManager 
                     deck={selectedDeck}
-                    cards={cards}
-                    loading={loading}
-                    onCreateCard={actions.createCard}
-                    onEditCard={actions.updateCard}
-                    onDeleteCard={actions.deleteCard}
-                    onStartCustomStudy={handleStartCustomStudy}
-                    onRefresh={() => {
-                      actions.loadCards(selectedDeck.id)
-                      refreshSidebar?.()
-                    }}
+                    onBack={() => setViewMode('overview')}
                   />
                 </div>
               </div>
             )}
-            {viewMode === 'study' && dueCards.length > 0 && (
+            {viewMode === 'study' && (
               <div className="h-full overflow-y-auto p-4 lg:p-6">
-                <StudySession
-                  deck={selectedDeck}
-                  cards={dueCards}
-                  onReviewCard={actions.reviewCard}
-                  onEndSession={handleEndStudy}
+                <FSRSStudySession
+                  deckId={selectedDeck.id}
+                  onSessionEnd={handleEndStudy}
                 />
               </div>
             )}
@@ -176,7 +159,7 @@ function EmptyState() {
             <Card className="p-3">
               <BookOpen className="h-6 w-6 mx-auto mb-2 text-blue-500" />
               <div className="font-medium">Étude intelligente</div>
-              <div className="text-muted-foreground text-xs">Algorithme SM-2</div>
+              <div className="text-muted-foreground text-xs">Algorithme FSRS</div>
             </Card>
             <Card className="p-3">
               <TrendingUp className="h-6 w-6 mx-auto mb-2 text-green-500" />
@@ -203,11 +186,13 @@ function EmptyState() {
 // Composant pour afficher un deck sélectionné
 function DeckView({ 
   deck, 
+  dueCards,
   onViewCards, 
   onStartStudy, 
   onViewStatistics
 }: { 
   deck: AnkiTreeNode
+  dueCards: any[]
   onViewCards: () => void
   onStartStudy: () => void
   onViewStatistics: () => void
@@ -229,16 +214,16 @@ function DeckView({
           <div className="flex items-center gap-2 lg:gap-3 flex-wrap">
             <Badge variant="outline" className="flex items-center gap-1 text-xs">
               <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-              {deck.cardCount} cartes
+              {deck.cardCount || 0} cartes
             </Badge>
-            {deck.dueCards > 0 && (
+            {dueCards.length > 0 && (
               <Badge variant="destructive" className="text-xs">
-                {deck.dueCards} à réviser
+                {dueCards.length} à réviser
               </Badge>
             )}
-            {deck.newCards > 0 && (
+            {dueCards.filter(dc => dc.priority === 'new').length > 0 && (
               <Badge className="bg-green-600 text-xs">
-                {deck.newCards} nouvelles
+                {dueCards.filter(dc => dc.priority === 'new').length} nouvelles
               </Badge>
             )}
           </div>
@@ -251,12 +236,12 @@ function DeckView({
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Zone d'étude */}
             <div className="lg:col-span-2">
-              <StudyArea deck={deck} onStartStudy={onStartStudy} onViewCards={onViewCards} />
+              <StudyArea dueCards={dueCards} onStartStudy={onStartStudy} onViewCards={onViewCards} />
             </div>
 
             {/* Sidebar stats */}
             <div className="space-y-6">
-              <DeckStats deck={deck} />
+              <DeckStats deck={deck} dueCards={dueCards} />
               <QuickActions 
                 onViewCards={onViewCards}
                 onStartStudy={onStartStudy}
@@ -272,16 +257,16 @@ function DeckView({
 
 // Zone d'étude principale
 function StudyArea({ 
-  deck, 
+  dueCards,
   onStartStudy, 
   onViewCards 
 }: { 
-  deck: AnkiTreeNode
+  dueCards: any[]
   onStartStudy: () => void
   onViewCards: () => void
 }) {
-  const hasDueCards = deck.dueCards > 0
-  const hasNewCards = deck.newCards > 0
+  const hasDueCards = dueCards.length > 0
+  const hasNewCards = dueCards.filter(dc => dc.priority === 'new').length > 0
 
   return (
     <Card className="min-h-[400px]">
@@ -297,9 +282,9 @@ function StudyArea({
             <BookOpen className="h-16 w-16 mx-auto text-blue-500" />
             <h3 className="text-xl font-semibold">Prêt à étudier !</h3>
             <p className="text-muted-foreground">
-              {hasDueCards && `${deck.dueCards} carte${deck.dueCards > 1 ? 's' : ''} à réviser`}
+              {hasDueCards && `${dueCards.length} carte${dueCards.length > 1 ? 's' : ''} à réviser`}
               {hasDueCards && hasNewCards && ' • '}
-              {hasNewCards && `${deck.newCards} nouvelle${deck.newCards > 1 ? 's' : ''} carte${deck.newCards > 1 ? 's' : ''}`}
+              {hasNewCards && `${dueCards.filter(dc => dc.priority === 'new').length} nouvelle${dueCards.filter(dc => dc.priority === 'new').length > 1 ? 's' : ''} carte${dueCards.filter(dc => dc.priority === 'new').length > 1 ? 's' : ''}`}
             </p>
             <Button size="lg" className="bg-blue-600 hover:bg-blue-700" onClick={onStartStudy}>
               Commencer l'étude
@@ -324,7 +309,7 @@ function StudyArea({
 }
 
 // Statistiques du deck
-function DeckStats({ deck }: { deck: AnkiTreeNode }) {
+function DeckStats({ deck, dueCards }: { deck: AnkiTreeNode; dueCards: any[] }) {
   return (
     <Card>
       <CardHeader>
@@ -333,22 +318,22 @@ function DeckStats({ deck }: { deck: AnkiTreeNode }) {
       <CardContent>
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">{deck.cardCount}</div>
+            <div className="text-2xl font-bold text-blue-600">{deck.cardCount || 0}</div>
             <div className="text-xs text-muted-foreground">Total cartes</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-orange-600">{deck.dueCards}</div>
+            <div className="text-2xl font-bold text-orange-600">{dueCards.length}</div>
             <div className="text-xs text-muted-foreground">À réviser</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">{deck.newCards}</div>
+            <div className="text-2xl font-bold text-green-600">{dueCards.filter(dc => dc.priority === 'new').length}</div>
             <div className="text-xs text-muted-foreground">Nouvelles</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-purple-600">
-              {deck.cardCount > 0 ? Math.round(((deck.cardCount - deck.dueCards - deck.newCards) / deck.cardCount) * 100) : 0}%
+              {dueCards.filter(dc => dc.priority === 'overdue').length}
             </div>
-            <div className="text-xs text-muted-foreground">Maîtrisées</div>
+            <div className="text-xs text-muted-foreground">En retard</div>
           </div>
         </div>
 

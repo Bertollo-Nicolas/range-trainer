@@ -15,7 +15,6 @@ export function Navbar() {
   const links = [
     { href: "/", label: "Editor", icon: Home },
     { href: "/trainer", label: "Trainer", icon: Dumbbell },
-    { href: "/mind", label: "Mind", icon: Brain },
     { href: "/pomodoro", label: "Pomodoro", icon: Timer },
     { href: "/anki", label: "Anki", icon: Brain },
     { href: "/stats", label: "Stats", icon: BarChart3 },

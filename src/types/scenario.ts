@@ -79,6 +79,22 @@ export interface NodeCreationConfig {
   positionNodeIds: string[]
 }
 
+// Nouveau: Structure propre pour un scénario
+export interface Scenario {
+  id: string
+  heroPosition: PokerPosition
+  heroAction: PokerAction
+  heroRange?: RangeObject
+  nodes: BaseNode[] // 6 nodes pour ce scénario uniquement
+}
+
+// Nouveau: Structure pour les données multi-scénarios
+export interface MultiScenarioData {
+  scenarios: Scenario[]
+  tableFormat: TableFormat
+  stackSize: number
+}
+
 // Algorithme de création dynamique selon v3 spec
 export interface DynamicNodeCreation {
   shouldCreate: boolean
@@ -111,3 +127,54 @@ export const getTablePositions = (tableFormat: TableFormat): PokerPosition[] => 
   }
   return POKER_POSITIONS // 6max par défaut
 }
+
+// Types pour les configurations multi-scénarios
+export interface ScenarioConfig {
+  name: string
+  heroPosition: PokerPosition
+  action: PokerAction
+  sizing?: number
+  description?: string
+}
+
+export interface MultiScenarioTemplate {
+  id: string
+  name: string
+  description: string
+  scenarios: ScenarioConfig[]
+}
+
+// Templates prédéfinis
+export const SCENARIO_TEMPLATES: MultiScenarioTemplate[] = [
+  {
+    id: 'preflop-opens',
+    name: 'Opens Preflop',
+    description: 'Scénarios d\'open dans toutes les positions',
+    scenarios: [
+      { name: 'UTG Open', heroPosition: 'UTG', action: 'open', sizing: 2.5 },
+      { name: 'HJ Open', heroPosition: 'HJ', action: 'open', sizing: 2.5 },
+      { name: 'CO Open', heroPosition: 'CO', action: 'open', sizing: 2.5 },
+      { name: 'BTN Open', heroPosition: 'BTN', action: 'open', sizing: 2.5 }
+    ]
+  },
+  {
+    id: '3bet-spots',
+    name: '3bet Spots',
+    description: 'Scénarios de 3bet face aux opens',
+    scenarios: [
+      { name: 'UTG vs BTN 3bet', heroPosition: 'UTG', action: '3bet', sizing: 9 },
+      { name: 'HJ vs BTN 3bet', heroPosition: 'HJ', action: '3bet', sizing: 9 },
+      { name: 'CO vs BTN 3bet', heroPosition: 'CO', action: '3bet', sizing: 9 }
+    ]
+  },
+  {
+    id: 'sb-spots',
+    name: 'Small Blind Spots',
+    description: 'Situations depuis la Small Blind',
+    scenarios: [
+      { name: 'SB vs UTG Open', heroPosition: 'SB', action: 'call' },
+      { name: 'SB vs BTN Open', heroPosition: 'SB', action: '3bet', sizing: 12 },
+      { name: 'SB Limp', heroPosition: 'SB', action: 'limp' }
+    ]
+  }
+]

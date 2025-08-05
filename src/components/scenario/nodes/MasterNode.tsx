@@ -8,18 +8,25 @@ import { Plus, Target } from 'lucide-react'
 
 interface MasterNodeData {
   onAddScenario?: () => void
+  onAddNewScenario?: () => void
   isActive?: boolean
+  scenarioCount?: number
 }
 
 /**
  * Master Node - v3 Implementation
- * Contains "Add Scenario" button that creates the 6 position nodes
- * According to trainer-scenario-v3.md specifications
+ * Contains buttons to create scenarios one by one
  */
 function MasterNode({ data, selected }: NodeProps<MasterNodeData>) {
   const handleAddScenario = () => {
     data.onAddScenario?.()
   }
+
+  const handleAddNewScenario = () => {
+    data.onAddNewScenario?.()
+  }
+
+  const hasExistingScenarios = (data.scenarioCount || 0) > 0
 
   return (
     <>
@@ -37,28 +44,42 @@ function MasterNode({ data, selected }: NodeProps<MasterNodeData>) {
               Master Node
             </CardTitle>
             <Badge variant="outline" className="ml-auto text-xs">
-              Node 1
+              {hasExistingScenarios ? `${data.scenarioCount} scénarios` : 'Nouveau'}
             </Badge>
           </div>
         </CardHeader>
         
         <CardContent className="space-y-4">
           <p className="text-sm text-gray-600 text-center">
-            Créer un nouveau scénario poker avec 6 positions
+            {hasExistingScenarios 
+              ? `${data.scenarioCount} scénario(s) créé(s)`
+              : 'Créer un nouveau scénario poker'
+            }
           </p>
           
-          <Button
-            onClick={handleAddScenario}
-            className="w-full flex items-center gap-2 h-10"
-            size="default"
-          >
-            <Plus className="h-4 w-4" />
-            Add Scenario
-          </Button>
+          {!hasExistingScenarios ? (
+            <Button
+              onClick={handleAddScenario}
+              className="w-full flex items-center gap-2 h-10"
+              size="default"
+            >
+              <Plus className="h-4 w-4" />
+              Premier Scénario
+            </Button>
+          ) : (
+            <Button
+              onClick={handleAddNewScenario}
+              className="w-full flex items-center gap-2 h-10"
+              variant="outline"
+            >
+              <Plus className="h-4 w-4" />
+              Ajouter Scénario
+            </Button>
+          )}
           
           <div className="pt-2 border-t border-gray-100">
             <p className="text-xs text-gray-500 text-center">
-              v3 Spec - trainer-scenario-v3.md
+              Cliquez pour ajouter un scénario
             </p>
           </div>
         </CardContent>

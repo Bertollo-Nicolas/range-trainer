@@ -15,14 +15,16 @@ export function Navbar() {
   const links = [
     { href: "/", label: "Editor", icon: Home },
     { href: "/trainer", label: "Trainer", icon: Dumbbell },
+    { href: "/pokermind", label: "PokerMind+", icon: Brain },
     { href: "/pomodoro", label: "Pomodoro", icon: Timer },
     { href: "/anki", label: "Anki", icon: Brain },
     { href: "/stats", label: "Stats", icon: BarChart3 },
   ]
 
-  // En mobile, on montre Trainer et Anki
+  // En mobile, on montre Trainer, PokerMind+ et Anki
   const mobileLinks = [
     { href: "/trainer", label: "Trainer", icon: Dumbbell },
+    { href: "/pokermind", label: "PokerMind+", icon: Brain },
     { href: "/anki", label: "Anki", icon: Brain },
   ]
 

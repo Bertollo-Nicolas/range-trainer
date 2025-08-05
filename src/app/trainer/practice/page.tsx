@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Crown } from 'lucide-react'
 import { ScenarioService } from '@/lib/services/scenario-service'
-import { BaseNode } from '@/types/scenario'
+import { BaseNode, Scenario, MultiScenarioData } from '@/types/scenario'
 import { TreeService } from '@/lib/services/tree-service'
 import { SessionService } from '@/lib/services/session-service'
 import { logger } from '@/utils/logger'
@@ -214,6 +214,59 @@ function createCard(rank: Rank, suit: Suit): Card {
   }
 }
 
+// Function to generate a random hand from notation
+function generateHandFromNotation(notation: string): Hand {
+  // Parse notation like "AKs", "AKo", "AA"
+  const isPair = notation.length === 2 && notation[0] === notation[1]
+  const isSuited = notation.endsWith('s')
+  
+  let rank1: Rank, rank2: Rank
+  
+  if (isPair) {
+    rank1 = rank2 = notation[0] as Rank
+  } else {
+    rank1 = notation[0] as Rank
+    rank2 = notation[1] as Rank
+  }
+  
+  // Generate appropriate suits
+  let suit1: Suit, suit2: Suit
+  if (isPair) {
+    // Different suits for pairs
+    const suit1Index = Math.floor(Math.random() * SUITS.length)
+    let suit2Index = Math.floor(Math.random() * SUITS.length)
+    while (suit2Index === suit1Index) {
+      suit2Index = Math.floor(Math.random() * SUITS.length)
+    }
+    suit1 = SUITS[suit1Index]
+    suit2 = SUITS[suit2Index]
+  } else if (isSuited) {
+    // Same suit for suited hands
+    const suitIndex = Math.floor(Math.random() * SUITS.length)
+    suit1 = suit2 = SUITS[suitIndex]
+  } else {
+    // Different suits for offsuit hands
+    const suit1Index = Math.floor(Math.random() * SUITS.length)
+    let suit2Index = Math.floor(Math.random() * SUITS.length)
+    while (suit2Index === suit1Index) {
+      suit2Index = Math.floor(Math.random() * SUITS.length)
+    }
+    suit1 = SUITS[suit1Index]
+    suit2 = SUITS[suit2Index]
+  }
+  
+  const card1 = createCard(rank1, suit1)
+  const card2 = createCard(rank2, suit2)
+  
+  return {
+    card1,
+    card2,
+    notation,
+    isPair,
+    isSuited
+  }
+}
+
 // Function to generate a random hand
 function generateRandomHand(): Hand {
   // Select two ranks randomly
@@ -282,6 +335,53 @@ function generateRandomHand(): Hand {
     notation,
     isPair: false,
     isSuited
+  }
+}
+
+// Intelligent hand generation: 70% in range, 30% out of range for better training
+function generateIntelligentHand(heroRange?: string[]): Hand {
+  if (!heroRange || heroRange.length === 0) {
+    // Fallback to random generation if no range
+    return generateRandomHand()
+  }
+  
+  const shouldBeInRange = Math.random() < 0.7 // 70% chance to be in range
+  
+  if (shouldBeInRange) {
+    // Select a random hand from the range
+    const randomIndex = Math.floor(Math.random() * heroRange.length)
+    const selectedNotation = heroRange[randomIndex]
+    
+    logger.debug('Generated hand from range', {
+      notation: selectedNotation,
+      rangeSize: heroRange.length
+    }, 'Practice')
+    
+    return generateHandFromNotation(selectedNotation)
+  } else {
+    // Generate a hand that's NOT in the range
+    let attempts = 0
+    let hand: Hand
+    
+    do {
+      hand = generateRandomHand()
+      attempts++
+    } while (heroRange.includes(hand.notation) && attempts < 50)
+    
+    if (attempts >= 50) {
+      logger.warn('Could not generate out-of-range hand after 50 attempts, using random', {
+        rangeSize: heroRange.length
+      }, 'Practice')
+      // If we can't find an out-of-range hand, just use random
+      hand = generateRandomHand()
+    } else {
+      logger.debug('Generated hand outside range', {
+        notation: hand.notation,
+        attempts
+      }, 'Practice')
+    }
+    
+    return hand
   }
 }
 
@@ -430,6 +530,56 @@ function normalizeAction(action: string): string {
   }
   
   return actionMap[action.toLowerCase()] || action.toLowerCase()
+}
+
+// Fonction pour convertir l'ancienne structure nodes[] vers la nouvelle structure multi-scénario
+function convertNodesToScenarios(nodes: BaseNode[]): MultiScenarioData {
+  // Grouper les nodes par scénario basé sur l'ID
+  const nodesByScenario = new Map<string, BaseNode[]>()
+  
+  nodes.forEach(node => {
+    // Extraire le numéro de scénario de l'ID (ex: "scenario0-UTG-...")
+    const scenarioMatch = node.id.match(/^scenario(\d+)-/)
+    const scenarioKey = scenarioMatch ? `scenario${scenarioMatch[1]}` : 'scenario0'
+    
+    if (!nodesByScenario.has(scenarioKey)) {
+      nodesByScenario.set(scenarioKey, [])
+    }
+    nodesByScenario.get(scenarioKey)!.push(node)
+  })
+  
+  // Convertir chaque groupe en Scenario
+  const scenarios: Scenario[] = []
+  
+  Array.from(nodesByScenario.entries()).forEach(([scenarioKey, scenarioNodes]) => {  
+    // Trouver le hero de ce scénario
+    const heroNode = scenarioNodes.find(node => node.isHero)
+    
+    if (heroNode && heroNode.action && heroNode.linkedRange) {
+      scenarios.push({
+        id: scenarioKey,
+        heroPosition: heroNode.position,
+        heroAction: heroNode.action,
+        heroRange: heroNode.linkedRange,
+        nodes: scenarioNodes.sort((a, b) => {
+          const positions = ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB']
+          return positions.indexOf(a.position) - positions.indexOf(b.position)
+        })
+      })
+    }
+  })
+  
+  logger.info('Converted nodes to scenarios', {
+    originalNodesCount: nodes.length,
+    scenariosCount: scenarios.length,
+    scenarios: scenarios.map(s => ({ id: s.id, hero: s.heroPosition, action: s.heroAction }))
+  }, 'Practice')
+  
+  return {
+    scenarios,
+    tableFormat: '6max',
+    stackSize: 100
+  }
 }
 
 // Generate 13x13 grid of poker hands
@@ -620,13 +770,23 @@ function StatsPanel({
   autoNext, 
   setAutoNext, 
   onNextHand, 
-  showNextButton
+  showNextButton,
+  animationSpeed,
+  setAnimationSpeed,
+  timeBankEnabled,
+  setTimeBankEnabled,
+  timeRemaining
 }: { 
   stats: PracticeStats
   autoNext: boolean
   setAutoNext: (value: boolean) => void
   onNextHand: () => void
   showNextButton: boolean
+  animationSpeed: number
+  setAnimationSpeed: (value: number) => void
+  timeBankEnabled: boolean
+  setTimeBankEnabled: (value: boolean) => void
+  timeRemaining: number
 }) {
   const totalAnswers = stats.correctAnswers + stats.incorrectAnswers
   const correctPercentage = totalAnswers > 0 ? (stats.correctAnswers / totalAnswers) * 100 : 0
@@ -704,6 +864,53 @@ function StatsPanel({
             </button>
           </div>
           
+          {/* Contrôle vitesse d'animation */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium">Vitesse animation</div>
+                <div className="text-xs text-muted-foreground">
+                  {animationSpeed === 0 ? 'Instantané' : `${animationSpeed}ms`}
+                </div>
+              </div>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="2000"
+              step="100"
+              value={animationSpeed}
+              onChange={(e) => setAnimationSpeed(parseInt(e.target.value))}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Instantané</span>
+              <span>Lent (2s)</span>
+            </div>
+          </div>
+
+          {/* Contrôle Time Bank */}
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-medium">Time Bank (30s)</div>
+              <div className="text-xs text-muted-foreground">
+                {timeBankEnabled ? `${timeRemaining}s restantes` : 'Temps illimité'}
+              </div>
+            </div>
+            <button
+              onClick={() => setTimeBankEnabled(!timeBankEnabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                timeBankEnabled ? 'bg-primary' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  timeBankEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
           {/* Bouton main suivante si auto-next désactivé */}
           {!autoNext && showNextButton && (
             <Button 
@@ -729,11 +936,12 @@ function PracticeContent() {
   const searchParams = useSearchParams()
   const scenarioId = searchParams.get('scenario')
   
-  const [nodes, setNodes] = useState<BaseNode[]>([])
+  // Nouvelle structure propre
+  const [multiScenarioData, setMultiScenarioData] = useState<MultiScenarioData | null>(null)
+  const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [scenarioName, setScenarioName] = useState('')
-  const [tableFormat, setTableFormat] = useState('6max')
   const [stats, setStats] = useState<PracticeStats>({
     totalHands: 0,
     correctAnswers: 0,
@@ -748,6 +956,9 @@ function PracticeContent() {
     waitingForHero: false
   })
   const [autoNext, setAutoNext] = useState(true) // Option to automatically go to next hand
+  const [animationSpeed, setAnimationSpeed] = useState(500) // Vitesse d'animation en ms (0 = instantané)
+  const [timeBankEnabled, setTimeBankEnabled] = useState(false) // Time bank 30s activé
+  const [timeRemaining, setTimeRemaining] = useState(30) // Temps restant en secondes
   const [randomHand, setRandomHand] = useState<RandomHandState>({
     currentHand: null,
     showHand: false
@@ -759,16 +970,9 @@ function PracticeContent() {
   })
   const [availableActions, setAvailableActions] = useState<string[]>(['fold'])
   
-  // States for complex scenario logic
-  const [firstHeroAction, setFirstHeroAction] = useState<{
-    node: BaseNode
-    range: string[]
-    action: string
-    rangeData: any // Complete range data with editorData
-  } | null>(null)
-  const [currentScenarioHand, setCurrentScenarioHand] = useState<Hand | null>(null)
-  const [scenarioInProgress, setScenarioInProgress] = useState(false)
-  const [currentNodeRangeData, setCurrentNodeRangeData] = useState<any>(null)
+  // Nouveaux states simplifiés pour la structure propre
+  const [lastUsedScenarioIndex, setLastUsedScenarioIndex] = useState<number>(-1)
+  const [currentHeroRangeData, setCurrentHeroRangeData] = useState<any>(null)
   
   // États pour le suivi de session
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null)
@@ -776,6 +980,43 @@ function PracticeContent() {
   const [questionStartTime, setQuestionStartTime] = useState<Date | null>(null)
   const [bestStreak, setBestStreak] = useState(0)
   const [handHistory, setHandHistory] = useState<HandHistory[]>([])
+
+  // Fonction pour sélectionner un scénario aléatoirement
+  const selectRandomScenario = () => {
+    if (!multiScenarioData || multiScenarioData.scenarios.length === 0) {
+      logger.warn('No scenarios available for selection', {}, 'Practice')
+      return null
+    }
+    
+    if (multiScenarioData.scenarios.length === 1) {
+      return multiScenarioData.scenarios[0]
+    }
+    
+    // Sélection avec rotation pour éviter la répétition excessive
+    let randomIndex
+    if (multiScenarioData.scenarios.length > 2) {
+      // Essayer d'éviter le même scénario que la fois précédente
+      do {
+        randomIndex = Math.floor(Math.random() * multiScenarioData.scenarios.length)
+      } while (randomIndex === lastUsedScenarioIndex && Math.random() < 0.7) // 70% de chance d'éviter le même
+    } else {
+      // Avec seulement 2 scénarios, alterner
+      randomIndex = lastUsedScenarioIndex === 0 ? 1 : 0
+    }
+    
+    setLastUsedScenarioIndex(randomIndex)
+    const selectedScenario = multiScenarioData.scenarios[randomIndex]
+    
+    logger.info('Random scenario selected', {
+      totalScenarios: multiScenarioData.scenarios.length,
+      selectedIndex: randomIndex,
+      lastUsedIndex: lastUsedScenarioIndex,
+      selectedHero: selectedScenario.heroPosition,
+      selectedAction: selectedScenario.heroAction
+    }, 'Practice')
+    
+    return selectedScenario
+  }
 
   useEffect(() => {
     if (scenarioId) {
@@ -786,138 +1027,180 @@ function PracticeContent() {
     }
   }, [scenarioId])
 
-  // Analyze scenario to identify first Hero action
-  const analyzeScenario = async (nodes: BaseNode[]) => {
-    const firstHero = nodes.find(node => node.isHero)
-    
-    if (firstHero && firstHero.linkedRange?.hands && firstHero.action) {
-      try {
-        // Load complete range data to access mixed colors
-        const fullRangeData = firstHero.linkedRange.id 
-          ? await TreeService.getById(firstHero.linkedRange.id)
-          : null
-
-        setFirstHeroAction({
-          node: firstHero,
-          range: firstHero.linkedRange.hands,
-          action: firstHero.action,
-          rangeData: (fullRangeData?.type === 'range' ? fullRangeData.data : null) || null
-        })
-        
-        logger.info('First Hero identified', {
-          position: firstHero.position,
-          action: firstHero.action,
-          rangeSize: firstHero.linkedRange.hands.length,
-          hasMixedColors: (fullRangeData?.type === 'range' ? fullRangeData.data?.editorData?.mixedColors?.length || 0 : 0) > 0
-        }, 'Practice')
-      } catch (error) {
-        logger.error('Error loading range data', { error }, 'Practice')
-        setFirstHeroAction({
-          node: firstHero,
-          range: firstHero.linkedRange.hands,
-          action: firstHero.action,
-          rangeData: null
-        })
-      }
-    } else {
-      setFirstHeroAction(null)
-    }
-  }
-
-  // Validate hand against first Hero action (complex logic)
-  const validateHandForComplexScenario = (hand: Hand): { 
-    shouldContinue: boolean, 
-    shouldStop: boolean, 
-    isValidForFirstAction: boolean 
-  } => {
-    if (!firstHeroAction) {
-      // Fallback vers la logique normale
-      return { shouldContinue: true, shouldStop: false, isValidForFirstAction: true }
-    }
-
-    const isInFirstRange = firstHeroAction.range.includes(hand.notation)
-    
-    if (isInFirstRange) {
-      // Valid hand for first action → continue scenario
-      logger.debug('Valid hand for first action, continuing scenario', { hand: hand.notation }, 'Practice')
-      return { shouldContinue: true, shouldStop: false, isValidForFirstAction: true }
-    } else {
-      // Hand not in first range → stop scenario, new hand
-      logger.debug('Hand not in first range, stopping scenario', { hand: hand.notation }, 'Practice')
-      return { shouldContinue: false, shouldStop: true, isValidForFirstAction: false }
-    }
-  }
-
-  // Animation effect
+  // Charger les données du hero quand le scénario change
   useEffect(() => {
-    if (!animation.isPlaying || nodes.length === 0) return
+    if (currentScenario) {
+      loadCurrentHeroRangeData(currentScenario)
+    }
+  }, [currentScenario])
+
+  // Time bank countdown
+  useEffect(() => {
+    if (!timeBankEnabled || !animation.waitingForHero || timeRemaining <= 0) {
+      return
+    }
+
+    const timer = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev <= 1) {
+          // Time bank expiré - jouer fold automatiquement
+          logger.warn('Time bank expired, auto-folding', {}, 'Practice')
+          playHeroAction('fold')
+          return 30 // Reset pour la prochaine main
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [timeBankEnabled, animation.waitingForHero, timeRemaining])
+
+  // Charger les données complètes de la range du hero actuel
+  const loadCurrentHeroRangeData = async (scenario: Scenario) => {
+    if (!scenario.heroRange?.id) {
+      setCurrentHeroRangeData(null)
+      return
+    }
+    
+    try {
+      const fullRangeData = await TreeService.getById(scenario.heroRange.id)
+      const rangeData = fullRangeData?.type === 'range' ? fullRangeData.data : null
+      setCurrentHeroRangeData(rangeData)
+      
+      logger.info('Hero range data loaded', {
+        position: scenario.heroPosition,
+        action: scenario.heroAction,
+        rangeSize: scenario.heroRange.hands.length,
+        hasMixedColors: rangeData?.editorData?.mixedColors?.length || 0
+      }, 'Practice')
+    } catch (error) {
+      logger.error('Error loading hero range data', { error }, 'Practice')
+      setCurrentHeroRangeData(null)
+    }
+  }
+
+  // Fonction pour démarrer une nouvelle main avec un nouveau scénario
+  const startNewHand = () => {
+    // Sélectionner un nouveau scénario
+    const newScenario = selectRandomScenario()
+    
+    if (!newScenario) {
+      logger.error('No scenario available for new hand', {}, 'Practice')
+      return
+    }
+    
+    setCurrentScenario(newScenario)
+    loadCurrentHeroRangeData(newScenario)
+    
+    // Reset de l'animation
+    setAnimation({
+      isPlaying: true,
+      currentStep: -1,
+      currentPot: 1.5, // Reset du pot aux blinds
+      playedActions: new Set(),
+      activePosition: null,
+      waitingForHero: false
+    })
+    
+    // Reset des cartes
+    setRandomHand({
+      currentHand: null,
+      showHand: false
+    })
+    
+    // Reset de l'affichage de range
+    setRangeDisplay(prev => ({
+      ...prev,
+      currentRange: null,
+      highlightedHand: null
+    }))
+    
+    logger.info('New hand started', {
+      scenario: newScenario.id,
+      hero: newScenario.heroPosition,
+      action: newScenario.heroAction
+    }, 'Practice')
+  }
+
+  // Générer une main pour le hero du scénario actuel
+  const generateHeroHand = (scenario: Scenario): Hand => {
+    const heroRange = scenario.heroRange?.hands || []
+    const newHand = generateIntelligentHand(heroRange)
+    
+    logger.info('Generated hand for hero', {
+      scenario: scenario.id,
+      position: scenario.heroPosition,
+      hand: newHand.notation,
+      rangeSize: heroRange.length
+    }, 'Practice')
+    
+    return newHand
+  }
+
+
+  // Nouvel effet d'animation simplifié
+  useEffect(() => {
+    if (!animation.isPlaying || !currentScenario) {
+      logger.debug('Animation blocked', {
+        isPlaying: animation.isPlaying,
+        hasScenario: !!currentScenario,
+        currentStep: animation.currentStep
+      }, 'Practice')
+      return
+    }
 
     const timer = setTimeout(() => {
       const nextStep = animation.currentStep + 1
+      const nodes = currentScenario.nodes
+      
+      logger.debug('Animation step', {
+        nextStep,
+        totalSteps: nodes.length,
+        scenario: currentScenario.id
+      }, 'Practice')
       
       if (nextStep >= nodes.length) {
-        // Animation finished
+        // Animation terminée
+        logger.debug('Scenario animation finished', {}, 'Practice')
         setAnimation(prev => ({ ...prev, isPlaying: false, activePosition: null }))
         return
       }
 
       const currentNode = nodes[nextStep]
-
-      // If it's a Hero, stop for interaction
+      
+      // Si c'est le hero, arrêter pour interaction
       if (currentNode.isHero) {
-        let newHand: Hand
+        logger.debug('Reached hero position, waiting for user decision', {
+          position: currentNode.position,
+          action: currentNode.action
+        }, 'Practice')
         
-        // If we already have a scenario hand in progress, reuse it
-        if (scenarioInProgress && currentScenarioHand) {
-          newHand = currentScenarioHand
-          logger.debug('Reusing scenario hand', { hand: newHand.notation }, 'Practice')
-        } else {
-          // Generate new hand and validate according to complex logic
-          newHand = generateRandomHand()
-          let validation = validateHandForComplexScenario(newHand)
-          
-          // If scenario should stop due to hand, generate new hand
-          if (validation.shouldStop) {
-            logger.debug('Invalid hand, generating new hand', {}, 'Practice')
-            newHand = generateRandomHand()
-            validation = validateHandForComplexScenario(newHand)
-            
-            // Safety: try maximum 10 times to avoid infinite loop
-            let attempts = 0
-            while (validation.shouldStop && attempts < 10) {
-              newHand = generateRandomHand()
-              validation = validateHandForComplexScenario(newHand)
-              attempts++
-            }
-            
-            if (attempts >= 10) {
-              logger.warn('Unable to generate valid hand after 10 attempts', { attempts }, 'Practice')
-            }
-          }
-          
-          // Save hand for entire scenario
-          setCurrentScenarioHand(newHand)
-          setScenarioInProgress(true)
-          logger.debug('New scenario hand saved', { hand: newHand.notation }, 'Practice')
-        }
+        // Générer une main pour le hero
+        const heroHand = generateHeroHand(currentScenario)
         
         setRandomHand({
-          currentHand: newHand,
+          currentHand: heroHand,
           showHand: true
         })
         
-        // Start timer for this question
-        setQuestionStartTime(new Date())
-        
-        // Load available actions from linked range
-        loadAvailableActions(currentNode)
-        
-        // Update range display
+        // Mettre à jour l'affichage de range
         setRangeDisplay(prev => ({
           ...prev,
-          currentRange: currentNode.linkedRange?.hands || null,
-          highlightedHand: newHand.notation
+          currentRange: currentScenario.heroRange?.hands || null,
+          highlightedHand: heroHand.notation
         }))
+        
+        logger.info('Hero hand generated', {
+          scenario: currentScenario.id,
+          position: currentNode.position,
+          hand: heroHand.notation
+        }, 'Practice')
+        
+        // Démarrer le timer pour cette question
+        setQuestionStartTime(new Date())
+        
+        // Charger les actions disponibles
+        loadAvailableActions()
         
         setAnimation(prev => ({
           ...prev,
@@ -927,141 +1210,92 @@ function PracticeContent() {
         }))
         return
       }
-
-      // Play action automatically for villains
+      
+      // Jouer automatiquement l'action du vilain
       playNodeAction(nextStep, currentNode)
 
-    }, 500) // 0.5 secondes par action vilain
+    }, animationSpeed) // Vitesse d'animation configurable
 
     return () => clearTimeout(timer)
-  }, [animation.isPlaying, animation.currentStep, nodes])
+  }, [animation.isPlaying, animation.currentStep, currentScenario])
 
   const playNodeAction = (stepIndex: number, node: BaseNode) => {
-    const nodeId = node.id
-
-    // Calculate new pot according to action and actual sizing
+    // Calculer l'augmentation du pot selon l'action
     let potIncrease = 0
     if (node.action === 'open') {
-      potIncrease = node.sizing || 2 // Utiliser le sizing du node ou 2bb par défaut
-    }
-    else if (node.action === '3bet') {
-      potIncrease = node.sizing || 9 // Utiliser le sizing du node ou 9bb par défaut
-    }
-    else if (node.action === '4bet') {
-      potIncrease = node.sizing || 20 // Utiliser le sizing du node ou 20bb par défaut
-    }
-    else if (node.action === 'call') {
-      // Pour call, trouver la dernière mise active
-      const playedNodes = nodes.slice(0, stepIndex + 1)
-      const lastRaiser = playedNodes
+      potIncrease = node.sizing || 2
+    } else if (node.action === '3bet') {
+      potIncrease = node.sizing || 9
+    } else if (node.action === '4bet') {
+      potIncrease = node.sizing || 20
+    } else if (node.action === 'call') {
+      // Trouver la dernière mise pour call
+      const lastRaiser = currentScenario?.nodes
+        .slice(0, stepIndex)
         .filter(n => ['open', '3bet', '4bet', 'raise'].includes(n.action || ''))
         .pop()
-      potIncrease = lastRaiser?.sizing || 1 // Call la dernière mise ou BB par défaut
+      potIncrease = lastRaiser?.sizing || 1
+    } else if (node.action === 'limp') {
+      potIncrease = 1
+    } else if (node.action === 'raise') {
+      potIncrease = node.sizing || 3
     }
-    else if (node.action === 'limp') {
-      potIncrease = 1 // Limp = 1bb
-    }
-    else if (node.action === 'raise') {
-      potIncrease = node.sizing || 3 // Utiliser le sizing du node ou 3bb par défaut
-    }
-    // fold adds nothing to pot
 
     logger.debug('Node action played', {
       position: node.position,
       action: node.action,
-      sizing: node.sizing || 'default',
       potIncrease
     }, 'Practice')
 
-    setAnimation(prev => {
-      const newPot = prev.currentPot + potIncrease
-      logger.debug('Pot updated', {
-        previousPot: prev.currentPot.toFixed(1),
-        increase: potIncrease,
-        newPot: newPot.toFixed(1)
-      }, 'Practice')
-      return {
-        ...prev,
-        currentStep: stepIndex,
-        currentPot: newPot,
-        playedActions: new Set([...prev.playedActions, nodeId]),
-        activePosition: node.position
-      }
-    })
+    setAnimation(prev => ({
+      ...prev,
+      currentStep: stepIndex,
+      currentPot: prev.currentPot + potIncrease,
+      playedActions: new Set([...prev.playedActions, node.id]),
+      activePosition: node.position
+    }))
 
-    // After 1 second, move to next
+    // Continuer après 1 seconde
     setTimeout(() => {
       setAnimation(prev => ({
         ...prev,
-        activePosition: null
+        activePosition: null,
+        isPlaying: true
       }))
     }, 1000)
   }
 
-  // Function to check if we should go to next hand
+  // Vérifier si on doit passer à la main suivante après la décision du hero
   const checkIfShouldStartNewHand = (heroStepIndex: number) => {
-    // After hero decision, check following positions
-    const remainingNodes = nodes.slice(heroStepIndex + 1)
+    if (!currentScenario) return true
     
-    // If no more positions after hero OR all following positions folded
-    return remainingNodes.length === 0 || remainingNodes.every(node => 
-      node.action === 'fold' || !node.action
+    const remainingNodes = currentScenario.nodes.slice(heroStepIndex + 1)
+    
+    // Si plus de nodes ou si tous les nodes restants sont inactifs/fold
+    const shouldStart = remainingNodes.length === 0 || remainingNodes.every(node => 
+      node.state === 'En attente' || 
+      node.state === 'Fold' || 
+      node.action === 'fold' || 
+      !node.action
     )
-  }
-
-  // Function to start a new hand
-  const startNewHand = () => {
-    setAnimation({
-      isPlaying: true,
-      currentStep: -1,
-      currentPot: 1.5, // Reset du pot aux blinds
-      playedActions: new Set(),
-      activePosition: null,
-      waitingForHero: false
-    })
-    setRandomHand({
-      currentHand: null,
-      showHand: false
-    })
-    setRangeDisplay(prev => ({
-      ...prev,
-      currentRange: null,
-      highlightedHand: null
-    }))
     
-    // Reset scenario
-    setCurrentScenarioHand(null)
-    setScenarioInProgress(false)
-    logger.debug('New scenario started, pot reset to blinds', { pot: 1.5 }, 'Practice')
+    logger.debug('Checking if should start new hand', {
+      heroStepIndex,
+      remainingNodesCount: remainingNodes.length,
+      remainingNodes: remainingNodes.map(n => ({ position: n.position, state: n.state, action: n.action })),
+      shouldStart
+    }, 'Practice')
+    
+    return shouldStart
   }
 
-  // Function to load available actions from a range
-  const loadAvailableActions = async (node: BaseNode) => {
-    try {
-      if (node.linkedRange?.id) {
-        const fullRange = await TreeService.getById(node.linkedRange.id)
-        const editorData = fullRange?.type === 'range' ? fullRange.data?.editorData : null
-        
-        // Save range data for mixed colors validation
-        setCurrentNodeRangeData(fullRange?.type === 'range' ? fullRange.data || null : null)
-        
-        if (editorData?.actions && Array.isArray(editorData.actions)) {
-          const actionNames = editorData.actions.map((action: any) => action.name)
-          // Always include 'fold' as first option
-          setAvailableActions(['fold', ...actionNames.filter((name: string) => name.toLowerCase() !== 'fold')])
-        } else {
-          // Default actions if no editor_data or actions
-          setAvailableActions(['fold', 'call', 'raise'])
-        }
-      } else {
-        // Default actions if no linked range
-        setCurrentNodeRangeData(null)
-        setAvailableActions(['fold', 'call', 'raise'])
-      }
-    } catch (error) {
-      logger.error('Error loading available actions', { error }, 'Practice')
-      // Default actions in case of error
-      setCurrentNodeRangeData(null)
+  // Charger les actions disponibles pour le hero
+  const loadAvailableActions = async () => {
+    if (currentHeroRangeData?.editorData?.actions) {
+      const actionNames = currentHeroRangeData.editorData.actions.map((action: any) => action.name)
+      setAvailableActions(['fold', ...actionNames.filter((name: string) => name.toLowerCase() !== 'fold')])
+    } else {
+      // Actions par défaut
       setAvailableActions(['fold', 'call', 'raise'])
     }
   }
@@ -1127,123 +1361,72 @@ function PracticeContent() {
     }
   }
 
+  // Nouvelle fonction simplifiée pour jouer l'action du hero
   const playHeroAction = (action: string) => {
-    if (!animation.waitingForHero || !randomHand.currentHand) return
+    if (!animation.waitingForHero || !currentScenario || !randomHand.currentHand) return
 
-    const currentNode = nodes[animation.currentStep + 1]
+    const currentNode = currentScenario.nodes[animation.currentStep + 1]
+    const currentHand = randomHand.currentHand
     
-    // Nouvelle logique pour scénarios complexes
-    let isCorrect = false
-    let shouldContinueScenario = true
+    // Valider l'action avec les mixed colors
+    const isCorrect = validateActionWithMixedColors(action, currentHand, currentNode, currentHeroRangeData)
     
-    if (firstHeroAction && randomHand.currentHand) {
-      // Logique complexe : vérifier la première action Hero SEULEMENT pour la première action
-      const isFirstHeroAction = currentNode.id === firstHeroAction.node.id
-      
-      if (isFirstHeroAction) {
-        // C'est la première action Hero : vérifier si la main est dans la première range
-        const isInFirstRange = firstHeroAction.range.includes(randomHand.currentHand.notation)
-        
-        if (!isInFirstRange) {
-          // Main pas dans la première range → arrêt du scénario, nouvelle main
-          logger.debug('Hand not in first range, immediate scenario stop', {}, 'Practice')
-          shouldContinueScenario = false
-          isCorrect = false // On compte comme erreur pour les stats
-        } else {
-          logger.debug('Valid hand for first action, scenario continues', {}, 'Practice')
-          // Main valide, validation avec mixed colors
-          isCorrect = validateActionWithMixedColors(action, randomHand.currentHand, currentNode, currentNodeRangeData)
-        }
-      } else {
-        // Actions Hero suivantes : validation avec mixed colors
-        isCorrect = validateActionWithMixedColors(action, randomHand.currentHand, currentNode, currentNodeRangeData)
-      }
-    } else {
-      // Logique classique pour scénarios simples avec mixed colors
-      isCorrect = validateActionWithMixedColors(action, randomHand.currentHand, currentNode, currentNodeRangeData)
+    // Ajouter à l'historique
+    const historyEntry: HandHistory = {
+      id: `hand-${Date.now()}`,
+      hand: currentHand.notation,
+      position: currentNode.position,
+      playerAction: action,
+      correctAction: isHandInRange(currentHand, currentScenario.heroRange?.hands || []) 
+        ? currentScenario.heroAction 
+        : 'fold',
+      isCorrect,
+      timestamp: Date.now()
     }
+    setHandHistory(prev => [historyEntry, ...prev].slice(0, 20))
     
-    // Ajouter à l'historique local
-    if (randomHand.currentHand) {
-      const historyEntry: HandHistory = {
-        id: `hand-${Date.now()}`,
-        hand: randomHand.currentHand.notation,
-        position: currentNode.position || 'Unknown',
-        playerAction: action,
-        correctAction: currentNode.linkedRange && randomHand.currentHand 
-          ? (isHandInRange(randomHand.currentHand, currentNode.linkedRange.hands) 
-             ? (currentNode.action || 'fold') 
-             : 'fold')
-          : (currentNode.action || 'fold'),
-        isCorrect,
-        timestamp: Date.now()
-      }
-      
-      setHandHistory(prev => [historyEntry, ...prev].slice(0, 20)) // Garder les 20 dernières mains
-    }
-    
-    // Enregistrer la main jouée
+    // Enregistrer la main
     if (currentSessionId) {
       recordHandPlayed(action, currentNode, isCorrect)
     }
     
-    // Mettre à jour les stats selon la réponse
+    // Mettre à jour les stats
     if (isCorrect) {
       handleCorrectAnswer()
     } else {
       handleIncorrectAnswer()
     }
 
-    // Ne plus cacher la main - elle doit rester visible pendant tout le scénario
-    // setRandomHand({
-    //   currentHand: null,
-    //   showHand: false
-    // })
-    
     // Masquer le highlight de la range
     setRangeDisplay(prev => ({
       ...prev,
       highlightedHand: null
     }))
 
-    // Gestion de la suite selon la logique complexe
-    if (!shouldContinueScenario) {
-      // Arrêt immédiat du scénario, nouvelle main
-      logger.debug('Scenario stopped, generating new hand', {}, 'Practice')
+    // Reset time bank pour la prochaine main
+    setTimeRemaining(30)
+    
+    logger.debug('Hero decision made', {
+      action,
+      isCorrect,
+      scenario: currentScenario.id
+    }, 'Practice')
+    
+    // Vérifier s'il faut continuer ou passer à la main suivante
+    const shouldStartNewHand = checkIfShouldStartNewHand(animation.currentStep + 1)
+    
+    if (shouldStartNewHand) {
+      // Pas d'animation nécessaire, nouvelle main
       if (autoNext) {
-        startNewHand()
+        setTimeout(() => startNewHand(), 1500)
+        setAnimation(prev => ({ ...prev, waitingForHero: false, isPlaying: false }))
       } else {
-        setAnimation(prev => ({
-          ...prev,
-          waitingForHero: false,
-          isPlaying: false
-        }))
+        setAnimation(prev => ({ ...prev, waitingForHero: false, isPlaying: false }))
       }
     } else {
-      // Continuer selon la logique normale
-      const shouldStartNewHand = checkIfShouldStartNewHand(animation.currentStep + 1)
-      
-      if (shouldStartNewHand) {
-        if (autoNext) {
-          // Passer automatiquement à la main suivante
-          startNewHand()
-        } else {
-          // Attendre que l'utilisateur clique sur "Main suivante"
-          setAnimation(prev => ({
-            ...prev,
-            waitingForHero: false,
-            isPlaying: false
-          }))
-        }
-      } else {
-        // Continuer l'animation
-        playNodeAction(animation.currentStep + 1, currentNode)
-        setAnimation(prev => ({
-          ...prev,
-          waitingForHero: false,
-          isPlaying: true
-        }))
-      }
+      // Continuer l'animation du scénario
+      playNodeAction(animation.currentStep + 1, currentNode)
+      setAnimation(prev => ({ ...prev, waitingForHero: false, isPlaying: true }))
     }
   }
 
@@ -1253,12 +1436,22 @@ function PracticeContent() {
       const scenarioData = await ScenarioService.loadScenario(id)
       
       if (scenarioData) {
-        setNodes(scenarioData.graph_data.nodes)
         setScenarioName(scenarioData.name)
-        setTableFormat(scenarioData.graph_data.tableFormat || '6max')
         
-        // Analyser le scénario pour la logique complexe
-        await analyzeScenario(scenarioData.graph_data.nodes)
+        // Convertir l'ancienne structure vers la nouvelle
+        const multiScenario = convertNodesToScenarios(scenarioData.graph_data.nodes)
+        setMultiScenarioData(multiScenario)
+        
+        // Sélectionner le premier scénario
+        if (multiScenario.scenarios.length > 0) {
+          setCurrentScenario(multiScenario.scenarios[0])
+          logger.info('Scenario loaded with new structure', {
+            totalScenarios: multiScenario.scenarios.length,
+            firstHero: multiScenario.scenarios[0].heroPosition
+          }, 'Practice')
+        } else {
+          setError('Aucun scénario Hero trouvé')
+        }
       } else {
         setError('Scénario non trouvé')
       }
@@ -1413,6 +1606,11 @@ function PracticeContent() {
           setAutoNext={setAutoNext}
           onNextHand={startNewHand}
           showNextButton={!animation.isPlaying && !animation.waitingForHero}
+          animationSpeed={animationSpeed}
+          setAnimationSpeed={setAnimationSpeed}
+          timeBankEnabled={timeBankEnabled}
+          setTimeBankEnabled={setTimeBankEnabled}
+          timeRemaining={timeRemaining}
         />
       </div>
       
@@ -1423,7 +1621,22 @@ function PracticeContent() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-sm lg:text-lg font-bold text-foreground">{scenarioName}</h1>
-              <p className="text-xs text-muted-foreground hidden lg:block">{tableFormat.toUpperCase()} • Practice</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-muted-foreground hidden lg:block">{multiScenarioData?.tableFormat.toUpperCase()} • Practice</p>
+                {currentScenario && (
+                  <div className="flex items-center gap-1">
+                    <Crown className="h-3 w-3 text-primary" />
+                    <span className="text-xs font-semibold text-primary">
+                      {currentScenario.heroPosition} ({currentScenario.heroAction})
+                    </span>
+                    {multiScenarioData && multiScenarioData.scenarios.length > 1 && (
+                      <span className="text-xs text-muted-foreground">
+                        [{multiScenarioData.scenarios.length} scénarios]
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             
             {/* Stats mobiles compactes */}
@@ -1438,20 +1651,33 @@ function PracticeContent() {
               </Button>
             </div>
             
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={async () => {
-                await saveSession()
-                setStats({ totalHands: 0, correctAnswers: 0, incorrectAnswers: 0 })
-                setBestStreak(0)
-                setHandHistory([])
-                setSessionStartTime(new Date())
-              }}
-              className="text-xs px-2 py-1 h-7 hidden lg:block"
-            >
-              Reset Stats
-            </Button>
+            <div className="hidden lg:flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={async () => {
+                  await saveSession()
+                  setStats({ totalHands: 0, correctAnswers: 0, incorrectAnswers: 0 })
+                  setBestStreak(0)
+                  setHandHistory([])
+                  setSessionStartTime(new Date())
+                }}
+                className="text-xs px-2 py-1 h-7"
+              >
+                Reset Stats
+              </Button>
+              <Button 
+                variant="destructive" 
+                size="sm"
+                onClick={async () => {
+                  await saveSession()
+                  window.location.href = '/trainer'
+                }}
+                className="text-xs px-2 py-1 h-7"
+              >
+                Terminer
+              </Button>
+            </div>
           </div>
         </header>
 
@@ -1502,62 +1728,62 @@ function PracticeContent() {
               <div className="players relative w-full h-full">
                 {/* UTG - En bas à gauche */}
                 <PlayerPosition 
-                  node={nodes.find(n => n.position === 'UTG') || undefined}
+                  node={currentScenario?.nodes.find(n => n.position === 'UTG')}
                   className="bottom-[calc(70px/-2)] left-[20%]"
                   isActive={animation.activePosition === 'UTG'}
-                  hasPlayedAction={animation.playedActions.has(nodes.find(n => n.position === 'UTG')?.id || '')}
+                  hasPlayedAction={currentScenario?.nodes.find(n => n.position === 'UTG')?.id ? animation.playedActions.has(currentScenario.nodes.find(n => n.position === 'UTG')!.id) : false}
                   showActionAnimation={animation.activePosition === 'UTG'}
-                  heroHand={currentScenarioHand || randomHand.currentHand}
+                  heroHand={currentScenario?.heroPosition === 'UTG' ? randomHand.currentHand : null}
                 />
 
                 {/* HJ - Côté gauche */}
                 <PlayerPosition 
-                  node={nodes.find(n => n.position === 'HJ') || undefined}
+                  node={currentScenario?.nodes.find(n => n.position === 'HJ')}
                   className="left-[calc(70px/-2)] top-1/2 -translate-y-1/2"
                   isActive={animation.activePosition === 'HJ'}
-                  hasPlayedAction={animation.playedActions.has(nodes.find(n => n.position === 'HJ')?.id || '')}
+                  hasPlayedAction={currentScenario?.nodes.find(n => n.position === 'HJ')?.id ? animation.playedActions.has(currentScenario.nodes.find(n => n.position === 'HJ')!.id) : false}
                   showActionAnimation={animation.activePosition === 'HJ'}
-                  heroHand={currentScenarioHand || randomHand.currentHand}
+                  heroHand={currentScenario?.heroPosition === 'HJ' ? randomHand.currentHand : null}
                 />
 
                 {/* CO - En haut à gauche */}
                 <PlayerPosition 
-                  node={nodes.find(n => n.position === 'CO') || undefined}
+                  node={currentScenario?.nodes.find(n => n.position === 'CO')}
                   className="top-[calc(70px/-2)] left-[20%]"
                   isActive={animation.activePosition === 'CO'}
-                  hasPlayedAction={animation.playedActions.has(nodes.find(n => n.position === 'CO')?.id || '')}
+                  hasPlayedAction={currentScenario?.nodes.find(n => n.position === 'CO')?.id ? animation.playedActions.has(currentScenario.nodes.find(n => n.position === 'CO')!.id) : false}
                   showActionAnimation={animation.activePosition === 'CO'}
-                  heroHand={currentScenarioHand || randomHand.currentHand}
+                  heroHand={currentScenario?.heroPosition === 'CO' ? randomHand.currentHand : null}
                 />
 
                 {/* BTN - En haut à droite */}
                 <PlayerPosition 
-                  node={nodes.find(n => n.position === 'BTN') || undefined}
+                  node={currentScenario?.nodes.find(n => n.position === 'BTN')}
                   className="top-[calc(70px/-2)] right-[20%]"
                   isActive={animation.activePosition === 'BTN'}
-                  hasPlayedAction={animation.playedActions.has(nodes.find(n => n.position === 'BTN')?.id || '')}
+                  hasPlayedAction={currentScenario?.nodes.find(n => n.position === 'BTN')?.id ? animation.playedActions.has(currentScenario.nodes.find(n => n.position === 'BTN')!.id) : false}
                   showActionAnimation={animation.activePosition === 'BTN'}
-                  heroHand={currentScenarioHand || randomHand.currentHand}
+                  heroHand={currentScenario?.heroPosition === 'BTN' ? randomHand.currentHand : null}
                 />
 
                 {/* SB - Côté droit */}
                 <PlayerPosition 
-                  node={nodes.find(n => n.position === 'SB') || undefined}
+                  node={currentScenario?.nodes.find(n => n.position === 'SB')}
                   className="right-[calc(70px/-2)] top-1/2 -translate-y-1/2"
                   isActive={animation.activePosition === 'SB'}
-                  hasPlayedAction={animation.playedActions.has(nodes.find(n => n.position === 'SB')?.id || '')}
+                  hasPlayedAction={currentScenario?.nodes.find(n => n.position === 'SB')?.id ? animation.playedActions.has(currentScenario.nodes.find(n => n.position === 'SB')!.id) : false}
                   showActionAnimation={animation.activePosition === 'SB'}
-                  heroHand={currentScenarioHand || randomHand.currentHand}
+                  heroHand={currentScenario?.heroPosition === 'SB' ? randomHand.currentHand : null}
                 />
 
                 {/* BB - En bas à droite */}
                 <PlayerPosition 
-                  node={nodes.find(n => n.position === 'BB') || undefined}
+                  node={currentScenario?.nodes.find(n => n.position === 'BB')}
                   className="bottom-[calc(70px/-2)] right-[20%]"
                   isActive={animation.activePosition === 'BB'}
-                  hasPlayedAction={animation.playedActions.has(nodes.find(n => n.position === 'BB')?.id || '')}
+                  hasPlayedAction={currentScenario?.nodes.find(n => n.position === 'BB')?.id ? animation.playedActions.has(currentScenario.nodes.find(n => n.position === 'BB')!.id) : false}
                   showActionAnimation={animation.activePosition === 'BB'}
-                  heroHand={currentScenarioHand || randomHand.currentHand}
+                  heroHand={currentScenario?.heroPosition === 'BB' ? randomHand.currentHand : null}
                 />
               </div>
             </div>
@@ -1567,8 +1793,18 @@ function PracticeContent() {
           {animation.waitingForHero ? (
             // Contrôles pour Hero
             <div className="text-center space-y-2 lg:space-y-3">
-              <div className="text-xs lg:text-sm font-semibold text-primary">
-                🎯 C'est à vous de jouer !
+              <div className="flex items-center justify-center gap-4">
+                <div className="text-xs lg:text-sm font-semibold text-primary">
+                  🎯 C'est à vous de jouer !
+                </div>
+                {timeBankEnabled && (
+                  <div className={`text-xs lg:text-sm font-bold ${
+                    timeRemaining <= 10 ? 'text-red-500 animate-pulse' : 
+                    timeRemaining <= 20 ? 'text-orange-500' : 'text-green-500'
+                  }`}>
+                    ⏱️ {timeRemaining}s
+                  </div>
+                )}
               </div>
               <div className="flex justify-center space-x-2 lg:space-x-3 flex-wrap gap-2 lg:gap-3">
                 {availableActions.map(action => (
@@ -1594,7 +1830,7 @@ function PracticeContent() {
             // Informations de progression
             <div className="text-center">
               <div className="text-xs text-muted-foreground">
-                Étape {animation.currentStep + 1} / {nodes.length}
+                Étape {animation.currentStep + 1} / {currentScenario?.nodes.length || 0}
               </div>
               {animation.isPlaying && (
                 <div className="text-xs text-primary">

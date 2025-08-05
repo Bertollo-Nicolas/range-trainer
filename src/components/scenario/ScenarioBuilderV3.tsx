@@ -26,7 +26,7 @@ import { RotateCcw, Save, Play, List } from 'lucide-react'
 import MasterNode from './nodes/MasterNode'
 import PositionNode from './nodes/PositionNode'
 import { useScenarioV3 } from '@/hooks/useScenarioV3'
-import { POKER_POSITIONS, getPositionIndex } from '@/types/scenario'
+import { POKER_POSITIONS, getPositionIndex, BaseNode, getTablePositions } from '@/types/scenario'
 
 // Types de nodes pour React Flow - v3 Implementation
 const nodeTypes: NodeTypes = {
@@ -51,6 +51,7 @@ function ScenarioBuilderV3Inner() {
     setScenarioTitle,
     currentScenarioId,
     createPositionNodes,
+    addNewScenario,
     updateNodeAction,
     modifyNodeAction,
     linkRangeToNode,
@@ -80,154 +81,295 @@ function ScenarioBuilderV3Inner() {
     }, 100)
   }, [createPositionNodes, fitView])
 
+  // Fonction pour ajouter un nouveau scénario
+  const handleAddNewScenario = useCallback(() => {
+    addNewScenario()
+    // FitView après un petit délai pour que les nodes soient rendus
+    setTimeout(() => {
+      fitView({ padding: 0.2, duration: 800 })
+    }, 100)
+  }, [addNewScenario, fitView])
+
   // Synchroniser les nodes React Flow avec le scenario state
   useEffect(() => {
     const reactFlowNodes: Node[] = []
     const reactFlowEdges: Edge[] = []
 
+    // Calculer le nombre de scénarios existants
+    const positions = getTablePositions('6max')
+    const scenarioCount = Math.floor(scenario.nodes.length / positions.length)
+    
+    // Calculer la position Y centrée du Master Node
+    const SCENARIO_VERTICAL_SPACING = 450 // NODE_HEIGHT (350) + marge (100)
+    const SCENARIO_START_Y = 200
+    
+    let masterNodeY = SCENARIO_START_Y // Position par défaut
+    
+    if (scenarioCount > 0) {
+      // Position Y du premier scénario
+      const firstScenarioY = SCENARIO_START_Y
+      // Position Y du dernier scénario
+      const lastScenarioY = SCENARIO_START_Y + (scenarioCount - 1) * SCENARIO_VERTICAL_SPACING
+      // Centrer le Master Node entre le premier et le dernier scénario
+      masterNodeY = (firstScenarioY + lastScenarioY) / 2
+    }
+    
     // Toujours afficher le Master Node selon tes spécifications
     reactFlowNodes.push({
       id: 'master-node',
       type: 'master',
-      position: { x: 50, y: 200 },
+      position: { x: 50, y: masterNodeY },
       draggable: false,
       data: {
         onAddScenario: handleCreatePositionNodes,
-        isActive: scenario.masterNodeVisible
+        onAddNewScenario: handleAddNewScenario,
+        isActive: scenario.masterNodeVisible,
+        scenarioCount: scenarioCount
       }
     })
 
     if (!scenario.masterNodeVisible) {
-      // Séparer les nodes de première et seconde ronde
-      const firstRoundNodes = scenario.nodes.filter(n => !n.id.includes('-2-'))
-      const secondRoundNodes = scenario.nodes.filter(n => n.id.includes('-2-'))
+      // Grouper les nodes par scénario basé sur l'ID
+      const nodesByScenario = new Map<string, BaseNode[]>()
       
-      // Afficher les nodes de première ronde
-      firstRoundNodes.forEach((node) => {
-        const positionIndex = getPositionIndex(node.position)
+      scenario.nodes.forEach(node => {
+        // Extraire le numéro de scénario de l'ID (ex: "scenario0-UTG-...")
+        const scenarioMatch = node.id.match(/^scenario(\d+)-/)
+        const scenarioKey = scenarioMatch ? `scenario${scenarioMatch[1]}` : 'single'
         
-        reactFlowNodes.push({
-          id: node.id,
-          type: 'position',
-          position: { 
-            x: 50 + 260 + positionIndex * 260,
-            y: 200 // Tous sur la même ligne
-          },
-          draggable: false,
-          data: {
-            position: node.position,
-            state: node.state,
-            isHero: node.isHero,
-            linkedRange: node.linkedRange,
-            sizing: node.sizing,
-            stackSize: node.stackSize,
-            scenarioStackSize: scenario.stackSize,
-            availableActions: node.availableActions,
-            currentAction: (node as any).action,
-            onChange: (action: any, sizing: any) => updateNodeAction(node.id, action, sizing),
-            onConvertToHero: () => convertToHero(node.id),
-            onConvertToVilain: () => convertToVilain(node.id),
-            onModifyAction: () => modifyNodeAction(node.id),
-            onLinkRange: (range: any) => linkRangeToNode(node.id, range),
-            onStackSizeChange: (stackSize: any) => setNodeStackSize(node.id, stackSize)
-          }
-        })
+        if (!nodesByScenario.has(scenarioKey)) {
+          nodesByScenario.set(scenarioKey, [])
+        }
+        nodesByScenario.get(scenarioKey)!.push(node)
       })
+      
+      // Si c'est un seul scénario (format classique), garder la logique existante
+      if (nodesByScenario.has('single')) {
+        const nodes = nodesByScenario.get('single') || Array.from(nodesByScenario.values())[0] || []
+        
+        // Séparer les nodes de première et seconde ronde
+        const firstRoundNodes = nodes.filter(n => !n.id.includes('-2-'))
+        const secondRoundNodes = nodes.filter(n => n.id.includes('-2-'))
+        
+        // Afficher les nodes de première ronde
+        firstRoundNodes.forEach((node) => {
+          const positionIndex = getPositionIndex(node.position)
+          
+          reactFlowNodes.push({
+            id: node.id,
+            type: 'position',
+            position: { 
+              x: 50 + 260 + positionIndex * 260,
+              y: 200 // Tous sur la même ligne
+            },
+            draggable: false,
+            data: {
+              position: node.position,
+              state: node.state,
+              isHero: node.isHero,
+              linkedRange: node.linkedRange,
+              sizing: node.sizing,
+              stackSize: node.stackSize,
+              scenarioStackSize: scenario.stackSize,
+              availableActions: node.availableActions,
+              currentAction: (node as any).action,
+              onChange: (action: any, sizing: any) => updateNodeAction(node.id, action, sizing),
+              onConvertToHero: () => convertToHero(node.id),
+              onConvertToVilain: () => convertToVilain(node.id),
+              onModifyAction: () => modifyNodeAction(node.id),
+              onLinkRange: (range: any) => linkRangeToNode(node.id, range),
+              onStackSizeChange: (stackSize: any) => setNodeStackSize(node.id, stackSize)
+            }
+          })
+        })
 
-      // Afficher les nodes post-BB en continuant la ligne
-      secondRoundNodes.forEach((node, index) => {
-        reactFlowNodes.push({
-          id: node.id,
-          type: 'position',
-          position: { 
-            x: 50 + 260 + (6 + index) * 260, // Continuer après les 6 premières positions
-            y: 200 // Même ligne
-          },
-          draggable: false,
-          data: {
-            position: node.position,
-            state: node.state,
-            isHero: node.isHero,
-            linkedRange: node.linkedRange,
-            sizing: node.sizing,
-            stackSize: node.stackSize,
-            scenarioStackSize: scenario.stackSize,
-            availableActions: node.availableActions,
-            currentAction: (node as any).action,
-            onChange: (action: any, sizing: any) => updateNodeAction(node.id, action, sizing),
-            onConvertToHero: () => convertToHero(node.id),
-            onConvertToVilain: () => convertToVilain(node.id),
-            onModifyAction: () => modifyNodeAction(node.id),
-            onLinkRange: (range: any) => linkRangeToNode(node.id, range),
-            onStackSizeChange: (stackSize: any) => setNodeStackSize(node.id, stackSize)
-          }
+        // Afficher les nodes post-BB en continuant la ligne
+        secondRoundNodes.forEach((node, index) => {
+          reactFlowNodes.push({
+            id: node.id,
+            type: 'position',
+            position: { 
+              x: 50 + 260 + (6 + index) * 260, // Continuer après les 6 premières positions
+              y: 200 // Même ligne
+            },
+            draggable: false,
+            data: {
+              position: node.position,
+              state: node.state,
+              isHero: node.isHero,
+              linkedRange: node.linkedRange,
+              sizing: node.sizing,
+              stackSize: node.stackSize,
+              scenarioStackSize: scenario.stackSize,
+              availableActions: node.availableActions,
+              currentAction: (node as any).action,
+              onChange: (action: any, sizing: any) => updateNodeAction(node.id, action, sizing),
+              onConvertToHero: () => convertToHero(node.id),
+              onConvertToVilain: () => convertToVilain(node.id),
+              onModifyAction: () => modifyNodeAction(node.id),
+              onLinkRange: (range: any) => linkRangeToNode(node.id, range),
+              onStackSizeChange: (stackSize: any) => setNodeStackSize(node.id, stackSize)
+            }
+          })
         })
-      })
+      } else {
+        // Affichage multi-scénarios : organisation en lignes séparées
+        let scenarioIndex = 0
+        
+        Array.from(nodesByScenario.entries()).forEach(([scenarioKey, nodes]) => {
+          const SCENARIO_VERTICAL_SPACING = 450 // NODE_HEIGHT (350) + marge (100)
+          console.log(`Rendering scenario ${scenarioKey} with ${nodes.length} nodes at y=${200 + scenarioIndex * SCENARIO_VERTICAL_SPACING}`)
+          
+          // Ajouter un label pour chaque scénario
+          reactFlowNodes.push({
+            id: `label-${scenarioKey}`,
+            type: 'input',
+            position: { x: 350, y: 150 + scenarioIndex * SCENARIO_VERTICAL_SPACING },
+            draggable: false,
+            data: { 
+              label: `Scénario ${scenarioIndex + 1}`,
+            },
+            style: {
+              background: '#f3f4f6',
+              border: '2px solid #d1d5db',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              width: 150,
+              textAlign: 'center'
+            }
+          })
+          
+          // Trier les nodes par position pour être sûr de l'ordre
+          const sortedNodes = nodes.sort((a, b) => getPositionIndex(a.position) - getPositionIndex(b.position))
+          
+          // Placer les nodes de ce scénario en ligne horizontale
+          sortedNodes.forEach((node) => {
+            const positionIndex = getPositionIndex(node.position)
+            
+            // Dimensions fixes calculées
+            const NODE_WIDTH = 240
+            const NODE_HEIGHT = 350 // Estimation hauteur d'un PositionNode
+            const NODE_SPACING = 20
+            const SCENARIO_VERTICAL_SPACING = NODE_HEIGHT + 100 // Hauteur node + marge
+            
+            const xPos = 350 + positionIndex * (NODE_WIDTH + NODE_SPACING)
+            const yPos = 200 + scenarioIndex * SCENARIO_VERTICAL_SPACING
+            
+            console.log(`Node ${node.position} at position (${xPos}, ${yPos})`)
+            
+            reactFlowNodes.push({
+              id: node.id,
+              type: 'position',
+              position: { 
+                x: xPos,
+                y: yPos
+              },
+              draggable: false,
+              data: {
+                position: node.position,
+                state: node.state,
+                isHero: node.isHero,
+                linkedRange: node.linkedRange,
+                sizing: node.sizing,
+                stackSize: node.stackSize,
+                scenarioStackSize: scenario.stackSize,
+                availableActions: node.availableActions,
+                currentAction: (node as any).action,
+                onChange: (action: any, sizing: any) => updateNodeAction(node.id, action, sizing),
+                onConvertToHero: () => convertToHero(node.id),
+                onConvertToVilain: () => convertToVilain(node.id),
+                onModifyAction: () => modifyNodeAction(node.id),
+                onLinkRange: (range: any) => linkRangeToNode(node.id, range),
+                onStackSizeChange: (stackSize: any) => setNodeStackSize(node.id, stackSize),
+                scenarioLabel: scenarioKey
+              }
+            })
+          })
+          scenarioIndex++
+        })
+      }
     }
 
-    // Créer des edges selon tes spécifications
+    // Créer des edges - seulement connecter les nodes du même scénario
     if (!scenario.masterNodeVisible && scenario.nodes.length > 0) {
-      const sortedNodes = [...scenario.nodes].sort((a, b) => 
-        getPositionIndex(a.position) - getPositionIndex(b.position)
-      )
+      // Grouper les nodes par scénario pour les edges aussi
+      const nodesByScenario = new Map<string, BaseNode[]>()
       
-      const firstRoundNodes = sortedNodes.filter(n => !n.id.includes('-2-'))
-      const secondRoundNodes = sortedNodes.filter(n => n.id.includes('-2-'))
-
-      // 1. Connecter Master Node à UTG (premier node)
-      if (firstRoundNodes.length > 0) {
-        const firstNode = firstRoundNodes[0]
-        reactFlowEdges.push({
-          id: `edge-master-${firstNode.id}`,
-          source: 'master-node',
-          target: firstNode.id,
-          type: 'default',
-          animated: false
-        })
-      }
-
-      // 2. Connecter les nodes de première ronde séquentiellement
-      for (let i = 0; i < firstRoundNodes.length - 1; i++) {
-        const currentNode = firstRoundNodes[i]
-        const nextNode = firstRoundNodes[i + 1]
+      scenario.nodes.forEach(node => {
+        const scenarioMatch = node.id.match(/^scenario(\d+)-/)
+        const scenarioKey = scenarioMatch ? `scenario${scenarioMatch[1]}` : 'single'
         
-        reactFlowEdges.push({
-          id: `edge-${currentNode.id}-${nextNode.id}`,
-          source: currentNode.id,
-          target: nextNode.id,
-          type: 'default',
-          animated: currentNode.state === 'Actif' || nextNode.state === 'Actif'
-        })
-      }
+        if (!nodesByScenario.has(scenarioKey)) {
+          nodesByScenario.set(scenarioKey, [])
+        }
+        nodesByScenario.get(scenarioKey)!.push(node)
+      })
 
-      // 3. Connecter les nouveaux nodes post-BB
-      if (secondRoundNodes.length > 0) {
-        // Connecter BB au premier node post-BB
-        const bbNode = firstRoundNodes.find(n => n.position === 'BB')
-        if (bbNode) {
+      // Pour chaque scénario, créer ses propres connexions
+      Array.from(nodesByScenario.entries()).forEach(([, nodes]) => {
+        const sortedNodes = nodes.sort((a, b) => 
+          getPositionIndex(a.position) - getPositionIndex(b.position)
+        )
+        
+        const firstRoundNodes = sortedNodes.filter(n => !n.id.includes('-2-'))
+        const secondRoundNodes = sortedNodes.filter(n => n.id.includes('-2-'))
+
+        // 1. Connecter Master Node au premier UTG de chaque scénario
+        if (firstRoundNodes.length > 0) {
+          const firstNode = firstRoundNodes[0]
           reactFlowEdges.push({
-            id: `edge-${bbNode.id}-${secondRoundNodes[0].id}`,
-            source: bbNode.id,
-            target: secondRoundNodes[0].id,
+            id: `edge-master-${firstNode.id}`,
+            source: 'master-node',
+            target: firstNode.id,
             type: 'default',
             animated: false
           })
         }
 
-        // Connecter les nodes post-BB entre eux séquentiellement
-        for (let i = 0; i < secondRoundNodes.length - 1; i++) {
-          const currentNode = secondRoundNodes[i]
-          const nextNode = secondRoundNodes[i + 1]
+        // 2. Connecter les nodes de première ronde séquentiellement (dans le même scénario uniquement)
+        for (let i = 0; i < firstRoundNodes.length - 1; i++) {
+          const currentNode = firstRoundNodes[i]
+          const nextNode = firstRoundNodes[i + 1]
           
           reactFlowEdges.push({
             id: `edge-${currentNode.id}-${nextNode.id}`,
             source: currentNode.id,
-            target: nextNode.id,
-            type: 'default',
+          target: nextNode.id,
+          type: 'default',
+          animated: currentNode.state === 'Actif' || nextNode.state === 'Actif'
+        })
+        }
+
+        // 3. Connecter les nouveaux nodes post-BB (dans le même scénario)
+        if (secondRoundNodes.length > 0) {
+          // Connecter BB au premier node post-BB
+          const bbNode = firstRoundNodes.find(n => n.position === 'BB')
+          if (bbNode) {
+            reactFlowEdges.push({
+              id: `edge-${bbNode.id}-${secondRoundNodes[0].id}`,
+              source: bbNode.id,
+              target: secondRoundNodes[0].id,
+              type: 'default',
+              animated: false
+            })
+          }
+
+          // Connecter les nodes post-BB entre eux séquentiellement
+          for (let i = 0; i < secondRoundNodes.length - 1; i++) {
+            const currentNode = secondRoundNodes[i]
+            const nextNode = secondRoundNodes[i + 1]
+            
+            reactFlowEdges.push({
+              id: `edge-${currentNode.id}-${nextNode.id}`,
+              source: currentNode.id,
+              target: nextNode.id,
+              type: 'default',
             animated: currentNode.state === 'Actif' || nextNode.state === 'Actif'
           })
         }
-      }
+        }
+      })
     }
 
     setNodes(reactFlowNodes)

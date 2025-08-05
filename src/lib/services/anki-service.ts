@@ -289,6 +289,7 @@ export class AnkiService {
 
   // Réviser une carte
   static async reviewCard(cardId: string, response: ReviewResponse): Promise<void> {
+    const client = this.checkSupabase()
     // Récupérer la carte actuelle
     const { data: card, error: fetchError } = await client
       .from('anki_cards')
@@ -588,6 +589,7 @@ export class AnkiService {
 
   // Statistiques d'un deck
   static async getDeckStats(deckId: string) {
+    const client = this.checkSupabase()
     const { data: cards, error } = await client
       .from('anki_cards')
       .select('card_state, due_date')
@@ -612,6 +614,7 @@ export class AnkiService {
 
   // Récupérer les données pour la heatmap
   static async getHeatmapData(startDate: Date, endDate: Date) {
+    const client = this.checkSupabase()
     const { data, error } = await client
       .from('anki_reviews')
       .select('reviewed_at')
@@ -640,6 +643,7 @@ export class AnkiService {
 
   // Récupérer la courbe d'apprentissage
   static async getLearningCurve(deckId: string, days: number = 30) {
+    const client = this.checkSupabase()
     const startDate = new Date()
     startDate.setDate(startDate.getDate() - days)
 

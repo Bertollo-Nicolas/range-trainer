@@ -43,8 +43,16 @@ export interface PomodoroHistoryEntry {
 }
 
 export class PomodoroService {
+  private static checkSupabase() {
+    if (!supabase) {
+      throw new Error('Supabase not available')
+    }
+    return supabase
+  }
+
   // Créer une nouvelle session
   static async createSession(config: PomodoroConfig): Promise<PomodoroSession> {
+    const client = this.checkSupabase()
     const insertData: PomodoroSessionInsert = {
       name: config.name,
       work_duration: config.workDuration * 60, // convertir en secondes
@@ -59,7 +67,7 @@ export class PomodoroService {
       completed_pomodoros: 0
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('pomodoro_sessions')
       .insert(insertData)
       .select()
@@ -75,7 +83,8 @@ export class PomodoroService {
 
   // Récupérer la session active (s'il y en a une)
   static async getActiveSession(): Promise<PomodoroSession | null> {
-    const { data, error } = await supabase
+    const client = this.checkSupabase()
+    const { data, error } = await client
       .from('pomodoro_sessions')
       .select('*')
       .eq('is_running', true)
@@ -93,7 +102,8 @@ export class PomodoroService {
 
   // Récupérer la dernière session (active ou non)
   static async getLatestSession(): Promise<PomodoroSession | null> {
-    const { data, error } = await supabase
+    const client = this.checkSupabase()
+    const { data, error } = await client
       .from('pomodoro_sessions')
       .select('*')
       .order('updated_at', { ascending: false })
@@ -110,7 +120,7 @@ export class PomodoroService {
 
   // Récupérer toutes les sessions
   static async getAllSessions(): Promise<PomodoroSession[]> {
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('pomodoro_sessions')
       .select('*')
       .order('created_at', { ascending: false })
@@ -137,7 +147,7 @@ export class PomodoroService {
     if (updates.startTime !== undefined) updateData.start_time = updates.startTime?.toISOString()
     if (updates.pauseTime !== undefined) updateData.pause_time = updates.pauseTime?.toISOString()
 
-    const { error } = await supabase
+    const { error } = await client
       .from('pomodoro_sessions')
       .update(updateData)
       .eq('id', sessionId)
@@ -150,7 +160,7 @@ export class PomodoroService {
 
   // Arrêter toutes les sessions actives
   static async stopAllSessions(): Promise<void> {
-    const { error } = await supabase
+    const { error } = await client
       .from('pomodoro_sessions')
       .update({ is_running: false, is_paused: false })
       .eq('is_running', true)
@@ -163,7 +173,7 @@ export class PomodoroService {
 
   // Supprimer une session
   static async deleteSession(sessionId: string): Promise<void> {
-    const { error } = await supabase
+    const { error } = await client
       .from('pomodoro_sessions')
       .delete()
       .eq('id', sessionId)
@@ -176,7 +186,7 @@ export class PomodoroService {
 
   // Ajouter une entrée à l'historique
   static async addHistoryEntry(entry: Omit<PomodoroHistoryEntry, 'id'>): Promise<void> {
-    const { error } = await supabase
+    const { error } = await client
       .from('pomodoro_history')
       .insert({
         session_id: entry.sessionId,
@@ -196,7 +206,7 @@ export class PomodoroService {
 
   // Récupérer l'historique d'une session
   static async getSessionHistory(sessionId: string): Promise<PomodoroHistoryEntry[]> {
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('pomodoro_history')
       .select('*')
       .eq('session_id', sessionId)

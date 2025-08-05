@@ -102,7 +102,7 @@ export class TagService {
       }
 
       const totalTags = data.length
-      const totalUsage = data.reduce((sum, tag) => sum + tag.usage_count, 0)
+      const totalUsage = data.reduce((sum: any, tag: any) => sum + tag.usage_count, 0)
       const topTags = data.slice(0, 10)
 
       return {

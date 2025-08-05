@@ -35,14 +35,14 @@ export class AnkiServiceBridge {
       }
 
       const now = new Date()
-      const activeCards = cards.filter(c => !c.suspended && !c.buried)
+      const activeCards = cards.filter((c: any) => !c.suspended && !c.buried)
       
       return {
         totalCards: activeCards.length,
-        newCards: activeCards.filter(c => c.state === 0).length,
-        learningCards: activeCards.filter(c => c.state === 1 || c.state === 3).length,
-        reviewCards: activeCards.filter(c => c.state === 2).length,
-        dueCards: activeCards.filter(c => new Date(c.due) <= now).length
+        newCards: activeCards.filter((c: any) => c.state === 0).length,
+        learningCards: activeCards.filter((c: any) => c.state === 1 || c.state === 3).length,
+        reviewCards: activeCards.filter((c: any) => c.state === 2).length,
+        dueCards: activeCards.filter((c: any) => new Date(c.due) <= now).length
       }
     } catch (error) {
       console.error('Error in getDeckStats:', error)
@@ -73,7 +73,7 @@ export class AnkiServiceBridge {
 
       // Get stats for each deck
       const decksWithStats = await Promise.all(
-        decks.map(async (deck) => {
+        decks.map(async (deck: any) => {
           const stats = await this.getDeckStats(deck.id)
           return {
             ...deck,
@@ -106,7 +106,7 @@ export class AnkiServiceBridge {
         return []
       }
 
-      return cards.map(card => ({
+      return cards.map((card: any) => ({
         id: card.id,
         deck_id: card.deck_id,
         question: card.front,
@@ -146,7 +146,7 @@ export class AnkiServiceBridge {
         return []
       }
 
-      return cards.map(card => ({
+      return cards.map((card: any) => ({
         id: card.id,
         deck_id: card.deck_id,
         question: card.front,

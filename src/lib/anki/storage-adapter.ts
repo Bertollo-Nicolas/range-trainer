@@ -200,7 +200,7 @@ export class StorageAdapter {
       throw new Error(`Failed to load cards: ${error.message}`)
     }
 
-    return data.map(card => this.dbCardToFSRSCard(card))
+    return data.map((card: DBCard) => this.dbCardToFSRSCard(card))
   }
 
   /**
@@ -233,7 +233,7 @@ export class StorageAdapter {
       throw new Error(`Failed to load due cards: ${error.message}`)
     }
 
-    return data.map(card => this.dbCardToFSRSCard(card))
+    return data.map((card: DBCard) => this.dbCardToFSRSCard(card))
   }
 
   /**
@@ -320,7 +320,7 @@ export class StorageAdapter {
     }
 
     return {
-      cards: data.map(card => this.dbCardToFSRSCard(card)),
+      cards: data.map((card: DBCard) => this.dbCardToFSRSCard(card)),
       total: count || 0
     }
   }
@@ -388,7 +388,7 @@ export class StorageAdapter {
       throw new Error(`Failed to load reviews: ${error.message}`)
     }
 
-    return data.map(review => this.dbReviewToCardReview(review))
+    return data.map((review: DBReview) => this.dbReviewToCardReview(review))
   }
 
   // ==================== SESSIONS D'ÉTUDE ====================

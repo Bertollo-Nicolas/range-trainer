@@ -61,7 +61,7 @@ export class AnkiService {
 
     // Calculer les stats pour chaque deck
     const decksWithStats = await Promise.all(
-      decks.map(async (deck) => {
+      decks.map(async (deck: any) => {
         const stats = await this.getDeckStats(deck.id)
         return {
           ...deck,
@@ -603,10 +603,10 @@ export class AnkiService {
     const now = new Date()
     const stats = {
       totalCards: cards.length,
-      newCards: cards.filter(c => c.card_state === 'new').length,
-      learningCards: cards.filter(c => c.card_state === 'learning').length,
-      reviewCards: cards.filter(c => c.card_state === 'review').length,
-      dueCards: cards.filter(c => new Date(c.due_date) <= now).length
+      newCards: cards.filter((c: any) => c.card_state === 'new').length,
+      learningCards: cards.filter((c: any) => c.card_state === 'learning').length,
+      reviewCards: cards.filter((c: any) => c.card_state === 'review').length,
+      dueCards: cards.filter((c: any) => new Date(c.due_date) <= now).length
     }
 
     return stats
@@ -629,7 +629,7 @@ export class AnkiService {
     // Grouper par jour
     const dailyCounts = new Map<string, number>()
     
-    data.forEach(review => {
+    data.forEach((review: any) => {
       const date = new Date(review.reviewed_at).toISOString().split('T')[0]
       dailyCounts.set(date, (dailyCounts.get(date) || 0) + 1)
     })
@@ -668,7 +668,7 @@ export class AnkiService {
     // Grouper par jour et calculer les métriques
     const dailyStats = new Map()
     
-    data.forEach(review => {
+    data.forEach((review: any) => {
       const date = new Date(review.reviewed_at).toISOString().split('T')[0]
       if (!dailyStats.has(date)) {
         dailyStats.set(date, { total: 0, correct: 0, easeSum: 0, count: 0 })

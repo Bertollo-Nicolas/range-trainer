@@ -120,6 +120,7 @@ export class PomodoroService {
 
   // Récupérer toutes les sessions
   static async getAllSessions(): Promise<PomodoroSession[]> {
+    const client = this.checkSupabase()
     const { data, error } = await client
       .from('pomodoro_sessions')
       .select('*')
@@ -131,11 +132,12 @@ export class PomodoroService {
       return []
     }
 
-    return data.map(row => this.mapRowToSession(row))
+    return data.map((row: any) => this.mapRowToSession(row))
   }
 
   // Mettre à jour une session
   static async updateSession(sessionId: string, updates: Partial<PomodoroSession>): Promise<void> {
+    const client = this.checkSupabase()
     const updateData: Partial<PomodoroSessionInsert> = {}
     
     if (updates.currentType !== undefined) updateData.current_type = updates.currentType
@@ -160,6 +162,7 @@ export class PomodoroService {
 
   // Arrêter toutes les sessions actives
   static async stopAllSessions(): Promise<void> {
+    const client = this.checkSupabase()
     const { error } = await client
       .from('pomodoro_sessions')
       .update({ is_running: false, is_paused: false })
@@ -173,6 +176,7 @@ export class PomodoroService {
 
   // Supprimer une session
   static async deleteSession(sessionId: string): Promise<void> {
+    const client = this.checkSupabase()
     const { error } = await client
       .from('pomodoro_sessions')
       .delete()
@@ -186,6 +190,7 @@ export class PomodoroService {
 
   // Ajouter une entrée à l'historique
   static async addHistoryEntry(entry: Omit<PomodoroHistoryEntry, 'id'>): Promise<void> {
+    const client = this.checkSupabase()
     const { error } = await client
       .from('pomodoro_history')
       .insert({
@@ -206,6 +211,7 @@ export class PomodoroService {
 
   // Récupérer l'historique d'une session
   static async getSessionHistory(sessionId: string): Promise<PomodoroHistoryEntry[]> {
+    const client = this.checkSupabase()
     const { data, error } = await client
       .from('pomodoro_history')
       .select('*')
@@ -217,7 +223,7 @@ export class PomodoroService {
       return []
     }
 
-    return data.map(row => ({
+    return data.map((row: any) => ({
       id: row.id,
       sessionId: row.session_id,
       type: row.type,

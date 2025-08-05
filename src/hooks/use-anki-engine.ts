@@ -124,6 +124,12 @@ export function useAnkiEngine(options: UseAnkiEngineOptions = {}): UseAnkiEngine
         setLoading(true)
         setError(null)
         
+        // Skip initialization during SSR/SSG
+        if (typeof window === 'undefined') {
+          setLoading(false)
+          return
+        }
+        
         const newEngine = createAnkiEngine(deckSettings)
         setEngine(newEngine)
         engineRef.current = newEngine

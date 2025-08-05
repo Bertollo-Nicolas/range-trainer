@@ -21,6 +21,9 @@ import {
 
 type ViewMode = 'overview' | 'cards' | 'study' | 'statistics'
 
+// Force dynamic rendering to avoid SSG issues with Supabase
+export const dynamic = 'force-dynamic'
+
 export default function AnkiPage() {
   const [selectedDeck, setSelectedDeck] = useState<AnkiTreeNode | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('overview')

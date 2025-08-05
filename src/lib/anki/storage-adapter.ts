@@ -87,12 +87,20 @@ interface DBDeckSettings {
 
 export class StorageAdapter {
   
+  private checkSupabase() {
+    if (!supabase) {
+      throw new Error('Supabase client not available. Check environment variables.')
+    }
+    return supabase
+  }
+  
   // ==================== CARTES ====================
 
   /**
    * Sauvegarde une carte en base de données
    */
   async saveCard(card: FSRSCard): Promise<void> {
+    const client = this.checkSupabase()
     const dbCard: Omit<DBCard, 'created_at'> = {
       id: card.id,
       deck_id: card.deckId,
@@ -111,7 +119,7 @@ export class StorageAdapter {
       scheduling_params: card.schedulingParams || undefined
     }
 
-    const { error } = await supabase
+    const { error } = await client
       .from('anki_cards_v2')
       .upsert(dbCard)
 
@@ -125,6 +133,7 @@ export class StorageAdapter {
    * Sauvegarde plusieurs cartes en lot
    */
   async saveCards(cards: FSRSCard[]): Promise<void> {
+    const client = this.checkSupabase()
     if (cards.length === 0) return
 
     const dbCards = cards.map(card => ({
@@ -145,7 +154,7 @@ export class StorageAdapter {
       scheduling_params: card.schedulingParams || undefined
     }))
 
-    const { error } = await supabase
+    const { error } = await client
       .from('anki_cards_v2')
       .upsert(dbCards)
 
@@ -159,7 +168,8 @@ export class StorageAdapter {
    * Charge une carte par ID
    */
   async loadCard(cardId: string): Promise<FSRSCard | null> {
-    const { data, error } = await supabase
+    const client = this.checkSupabase()
+    const { data, error } = await client
       .from('anki_cards_v2')
       .select('*')
       .eq('id', cardId)
@@ -178,7 +188,8 @@ export class StorageAdapter {
    * Charge les cartes d'un deck
    */
   async loadCardsByDeck(deckId: string): Promise<FSRSCard[]> {
-    const { data, error } = await supabase
+    const client = this.checkSupabase()
+    const { data, error } = await client
       .from('anki_cards_v2')
       .select('*')
       .eq('deck_id', deckId)
@@ -196,9 +207,10 @@ export class StorageAdapter {
    * Charge les cartes dues
    */
   async loadDueCards(deckId?: string, limit?: number): Promise<FSRSCard[]> {
+    const client = this.checkSupabase()
     const now = new Date().toISOString()
     
-    let query = supabase
+    let query = client
       .from('anki_cards_v2')
       .select('*')
       .lte('due', now)
@@ -228,7 +240,8 @@ export class StorageAdapter {
    * Recherche de cartes avec filtres
    */
   async searchCards(options: SearchOptions): Promise<{ cards: FSRSCard[]; total: number }> {
-    let query = supabase.from('anki_cards_v2').select('*', { count: 'exact' })
+    const client = this.checkSupabase()
+    let query = client.from('anki_cards_v2').select('*', { count: 'exact' })
 
     // Application des filtres
     if (options.filter) {
@@ -316,7 +329,8 @@ export class StorageAdapter {
    * Supprime une carte
    */
   async deleteCard(cardId: string): Promise<void> {
-    const { error } = await supabase
+    const client = this.checkSupabase()
+    const { error } = await client
       .from('anki_cards_v2')
       .delete()
       .eq('id', cardId)
@@ -333,6 +347,7 @@ export class StorageAdapter {
    * Sauvegarde une révision
    */
   async saveReview(review: CardReview): Promise<void> {
+    const client = this.checkSupabase()
     const dbReview: DBReview = {
       id: review.id,
       card_id: review.cardId,
@@ -347,7 +362,7 @@ export class StorageAdapter {
       fsrs_log: review.fsrsLog as any
     }
 
-    const { error } = await supabase
+    const { error } = await client
       .from('anki_reviews_v2')
       .insert(dbReview)
 
@@ -361,7 +376,8 @@ export class StorageAdapter {
    * Charge l'historique des révisions d'une carte
    */
   async loadCardReviews(cardId: string): Promise<CardReview[]> {
-    const { data, error } = await supabase
+    const client = this.checkSupabase()
+    const { data, error } = await client
       .from('anki_reviews_v2')
       .select('*')
       .eq('card_id', cardId)
@@ -381,6 +397,7 @@ export class StorageAdapter {
    * Crée une nouvelle session d'étude
    */
   async createSession(deckId?: string): Promise<StudySession> {
+    const client = this.checkSupabase()
     const session: StudySession = {
       id: crypto.randomUUID(),
       deckId,
@@ -412,7 +429,7 @@ export class StorageAdapter {
       easy_count: 0
     }
 
-    const { error } = await supabase
+    const { error } = await client
       .from('anki_study_sessions_v2')
       .insert(dbSession)
 
@@ -428,6 +445,7 @@ export class StorageAdapter {
    * Met à jour une session d'étude
    */
   async updateSession(session: StudySession): Promise<void> {
+    const client = this.checkSupabase()
     const dbSession: DBSession = {
       id: session.id,
       deck_id: session.deckId || null,
@@ -444,7 +462,7 @@ export class StorageAdapter {
       easy_count: session.easyCount
     }
 
-    const { error } = await supabase
+    const { error } = await client
       .from('anki_study_sessions_v2')
       .update(dbSession)
       .eq('id', session.id)
@@ -461,13 +479,14 @@ export class StorageAdapter {
    * Sauvegarde les paramètres d'un deck
    */
   async saveDeckSettings(deckId: string, settings: DeckSettings): Promise<void> {
+    const client = this.checkSupabase()
     const dbSettings: DBDeckSettings = {
       deck_id: deckId,
       settings,
       updated_at: new Date().toISOString()
     }
 
-    const { error } = await supabase
+    const { error } = await client
       .from('anki_deck_settings_v2')
       .upsert(dbSettings)
 
@@ -481,7 +500,8 @@ export class StorageAdapter {
    * Charge les paramètres d'un deck
    */
   async loadDeckSettings(deckId: string): Promise<DeckSettings | null> {
-    const { data, error } = await supabase
+    const client = this.checkSupabase()
+    const { data, error } = await client
       .from('anki_deck_settings_v2')
       .select('settings')
       .eq('deck_id', deckId)
@@ -502,6 +522,7 @@ export class StorageAdapter {
    * Importe des cartes en lot
    */
   async importCards(cards: CardImport[], defaultDeckId: string): Promise<ImportResult> {
+    const client = this.checkSupabase()
     const result: ImportResult = {
       success: 0,
       failed: 0,
@@ -541,7 +562,7 @@ export class StorageAdapter {
             updated_at: new Date().toISOString()
           }
 
-          const { error } = await supabase
+          const { error } = await client
             .from('anki_cards_v2')
             .insert(dbCard)
 
@@ -621,8 +642,9 @@ export class StorageAdapter {
    * Obtient ou crée un deck par nom
    */
   private async getOrCreateDeck(deckName: string, createdDecks: string[]): Promise<string> {
+    const client = this.checkSupabase()
     // Vérifie si le deck existe déjà
-    const { data: existingDeck } = await supabase
+    const { data: existingDeck } = await client
       .from('anki_decks')
       .select('id')
       .eq('name', deckName)
@@ -634,7 +656,7 @@ export class StorageAdapter {
 
     // Crée un nouveau deck
     const deckId = crypto.randomUUID()
-    const { error } = await supabase
+    const { error } = await client
       .from('anki_decks')
       .insert({
         id: deckId,

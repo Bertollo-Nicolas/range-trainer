@@ -6,10 +6,19 @@
 import { supabase } from '@/lib/supabase'
 
 export class AnkiServiceBridge {
+  private static checkSupabase() {
+    if (!supabase) {
+      throw new Error('Supabase not available')
+    }
+    return supabase
+  }
+
   // Get deck stats using new v2 tables
   static async getDeckStats(deckId: string) {
     try {
-      const { data: cards, error } = await supabase
+      const client = this.checkSupabase()
+      
+      const { data: cards, error } = await client
         .from('anki_cards_v2')
         .select('state, due, suspended, buried')
         .eq('deck_id', deckId)
@@ -50,7 +59,9 @@ export class AnkiServiceBridge {
   // Get all decks with basic stats
   static async getDecks() {
     try {
-      const { data: decks, error } = await supabase
+      const client = this.checkSupabase()
+      
+      const { data: decks, error } = await client
         .from('anki_decks')
         .select('*')
         .order('name')
@@ -83,7 +94,8 @@ export class AnkiServiceBridge {
   // Placeholder methods for compatibility
   static async getCards(deckId: string) {
     try {
-      const { data: cards, error } = await supabase
+      const client = this.checkSupabase()
+      const { data: cards, error } = await client
         .from('anki_cards_v2')
         .select('*')
         .eq('deck_id', deckId)
@@ -113,7 +125,8 @@ export class AnkiServiceBridge {
 
   static async getDueCards(deckId?: string) {
     try {
-      let query = supabase
+      const client = this.checkSupabase()
+      let query = client
         .from('anki_cards_v2')
         .select('*')
         .lte('due', new Date().toISOString())
@@ -232,7 +245,8 @@ export class AnkiServiceBridge {
   // Deck management methods
   static async createDeck(deckData: any) {
     try {
-      const { data: deck, error } = await supabase
+      const client = this.checkSupabase()
+      const { data: deck, error } = await client
         .from('anki_decks')
         .insert([{
           name: deckData.name,
@@ -258,7 +272,8 @@ export class AnkiServiceBridge {
 
   static async updateDeck(deckId: string, updates: any) {
     try {
-      const { data: deck, error } = await supabase
+      const client = this.checkSupabase()
+      const { data: deck, error } = await client
         .from('anki_decks')
         .update(updates)
         .eq('id', deckId)
@@ -279,7 +294,7 @@ export class AnkiServiceBridge {
 
   static async deleteDeck(deckId: string) {
     try {
-      const { error } = await supabase
+      const { error } = await client
         .from('anki_decks')
         .delete()
         .eq('id', deckId)
@@ -296,7 +311,7 @@ export class AnkiServiceBridge {
 
   static async moveDeck(deckId: string, newParentId: string | null) {
     try {
-      const { error } = await supabase
+      const { error } = await client
         .from('anki_decks')
         .update({ parent_id: newParentId })
         .eq('id', deckId)

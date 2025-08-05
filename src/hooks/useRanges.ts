@@ -31,6 +31,21 @@ export function useRanges() {
       
       console.log('🔍 Chargement des ranges...')
       
+      if (!supabase) {
+        console.warn('⚠️ Supabase not available, using test ranges')
+        const testRanges: Range[] = [
+          {
+            id: '1',
+            name: 'Preflop - UTG Opening Range',
+            notes: 'Range d\'ouverture standard UTG en 6max',
+            data: { ranges: [] }
+          }
+        ]
+        setRanges(testRanges)
+        setLoading(false)
+        return
+      }
+      
       const { data, error } = await supabase
         .from('tree_items')
         .select('*')
@@ -91,6 +106,10 @@ export function useRanges() {
 
   const createRange = async (range: Omit<Range, 'id' | 'created_at' | 'updated_at'>) => {
     try {
+      if (!supabase) {
+        throw new Error('Supabase not available')
+      }
+      
       const { data, error } = await supabase
         .from('tree_items')
         .insert([{ ...range, type: 'range' }])
@@ -109,6 +128,10 @@ export function useRanges() {
 
   const updateRange = async (id: string, updates: Partial<Range>) => {
     try {
+      if (!supabase) {
+        throw new Error('Supabase not available')
+      }
+      
       const { data, error } = await supabase
         .from('tree_items')
         .update(updates)
@@ -128,6 +151,10 @@ export function useRanges() {
 
   const deleteRange = async (id: string) => {
     try {
+      if (!supabase) {
+        throw new Error('Supabase not available')
+      }
+      
       const { error } = await supabase
         .from('tree_items')
         .delete()

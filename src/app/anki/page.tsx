@@ -6,6 +6,7 @@ import { AnkiTreeNode } from '@/types/anki'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { FSRSStudySession } from '@/components/anki/fsrs-study-session'
 import { DeckStatistics } from '@/components/anki/deck-statistics'
 import { CardManager } from '@/components/anki/card-manager'
@@ -16,7 +17,9 @@ import {
   TrendingUp,
   BarChart3,
   Calendar,
-  Brain
+  Brain,
+  Menu,
+  ArrowLeft
 } from 'lucide-react'
 
 type ViewMode = 'overview' | 'cards' | 'study' | 'statistics'
@@ -29,6 +32,7 @@ export default function AnkiPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('overview')
   const [refreshSidebar, setRefreshSidebar] = useState<(() => void) | null>(null)
   const [isClient, setIsClient] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const { 
     dueCards,
     actions 
@@ -42,6 +46,7 @@ export default function AnkiPage() {
   const handleSelectDeck = (deck: AnkiTreeNode | null) => {
     setSelectedDeck(deck)
     setViewMode('overview')
+    setIsMobileMenuOpen(false) // Fermer le menu mobile
     if (deck) {
       actions.loadDueCards(deck.id)
     }
@@ -90,12 +95,50 @@ export default function AnkiPage() {
 
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-background">
-      {/* Sidebar - Hidden on mobile, shown on desktop */}
+      {/* Sidebar Desktop */}
       <div className="hidden lg:block w-80 flex-shrink-0">
         <AnkiSidebar 
           onSelectDeck={handleSelectDeck}
           onRefreshReady={handleRefreshReady}
         />
+      </div>
+
+      {/* Mobile Header */}
+      <div className="lg:hidden border-b bg-white">
+        <div className="flex items-center justify-between p-4">
+          <div className="flex items-center gap-3">
+            {selectedDeck ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedDeck(null)}
+                  className="p-2"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-lg">{selectedDeck.icon}</span>
+                <h1 className="font-semibold truncate">{selectedDeck.name}</h1>
+              </>
+            ) : (
+              <h1 className="font-semibold">Anki</h1>
+            )}
+          </div>
+          
+          <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="sm" className="p-2">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-80 p-0">
+              <AnkiSidebar 
+                onSelectDeck={handleSelectDeck}
+                onRefreshReady={handleRefreshReady}
+              />
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
 
       {/* Main content */}
@@ -139,7 +182,7 @@ export default function AnkiPage() {
             )}
           </div>
         ) : (
-          <EmptyState />
+          <EmptyState onOpenMenu={() => setIsMobileMenuOpen(true)} />
         )}
       </div>
     </div>
@@ -147,7 +190,7 @@ export default function AnkiPage() {
 }
 
 // Composant pour l'état vide
-function EmptyState() {
+function EmptyState({ onOpenMenu }: { onOpenMenu?: () => void }) {
   return (
     <div className="flex items-center justify-center h-full p-4 lg:p-8">
       <div className="text-center max-w-md w-full">
@@ -155,8 +198,17 @@ function EmptyState() {
         <h2 className="text-xl lg:text-2xl font-bold mb-2">Bienvenue dans Anki</h2>
         <p className="text-muted-foreground mb-6 text-sm lg:text-base">
           <span className="hidden lg:inline">Sélectionnez un deck dans la sidebar pour commencer l'étude, ou créez votre premier deck pour débuter.</span>
-          <span className="lg:hidden">Créez votre premier deck ou utilisez la navigation pour accéder aux decks existants.</span>
+          <span className="lg:hidden">Accédez au menu pour sélectionner un deck ou créer votre premier deck.</span>
         </p>
+        
+        {/* Bouton mobile pour ouvrir le menu */}
+        <div className="lg:hidden mb-6">
+          <Button onClick={onOpenMenu} className="bg-blue-600 hover:bg-blue-700">
+            <Menu className="h-4 w-4 mr-2" />
+            Ouvrir le menu
+          </Button>
+        </div>
+
         <div className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
             <Card className="p-3">
@@ -235,16 +287,31 @@ function DeckView({
 
       {/* Contenu principal */}
       <div className="flex-1 overflow-y-auto p-4 lg:p-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Zone d'étude */}
-            <div className="lg:col-span-2">
+        <div className="max-w-6xl mx-auto">
+          {/* Layout mobile: stack vertical, desktop: grid */}
+          <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 lg:gap-6">
+            {/* Stats mobiles en premier sur petit écran */}
+            <div className="lg:hidden">
+              <DeckStats deck={deck} dueCards={dueCards} />
+            </div>
+
+            {/* Zone d'étude - order différent selon écran */}
+            <div className="lg:col-span-2 order-2 lg:order-1">
               <StudyArea dueCards={dueCards} onStartStudy={onStartStudy} onViewCards={onViewCards} />
             </div>
 
-            {/* Sidebar stats */}
-            <div className="space-y-6">
+            {/* Sidebar stats desktop */}
+            <div className="hidden lg:block space-y-6 order-1 lg:order-2">
               <DeckStats deck={deck} dueCards={dueCards} />
+              <QuickActions 
+                onViewCards={onViewCards}
+                onStartStudy={onStartStudy}
+                onViewStatistics={onViewStatistics}
+              />
+            </div>
+
+            {/* Actions mobiles */}
+            <div className="lg:hidden order-3">
               <QuickActions 
                 onViewCards={onViewCards}
                 onStartStudy={onStartStudy}
@@ -272,35 +339,35 @@ function StudyArea({
   const hasNewCards = dueCards.filter(dc => dc.priority === 'new').length > 0
 
   return (
-    <Card className="min-h-[400px]">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Brain className="h-5 w-5" />
+    <Card className="min-h-[300px] lg:min-h-[400px]">
+      <CardHeader className="pb-3 lg:pb-6">
+        <CardTitle className="flex items-center gap-2 text-lg lg:text-xl">
+          <Brain className="h-4 w-4 lg:h-5 lg:w-5" />
           Zone d'étude
         </CardTitle>
       </CardHeader>
-      <CardContent className="flex items-center justify-center">
+      <CardContent className="flex items-center justify-center pt-0">
         {hasDueCards || hasNewCards ? (
-          <div className="text-center space-y-4">
-            <BookOpen className="h-16 w-16 mx-auto text-blue-500" />
-            <h3 className="text-xl font-semibold">Prêt à étudier !</h3>
-            <p className="text-muted-foreground">
+          <div className="text-center space-y-3 lg:space-y-4">
+            <BookOpen className="h-12 w-12 lg:h-16 lg:w-16 mx-auto text-blue-500" />
+            <h3 className="text-lg lg:text-xl font-semibold">Prêt à étudier !</h3>
+            <p className="text-muted-foreground text-sm lg:text-base px-2">
               {hasDueCards && `${dueCards.length} carte${dueCards.length > 1 ? 's' : ''} à réviser`}
               {hasDueCards && hasNewCards && ' • '}
               {hasNewCards && `${dueCards.filter(dc => dc.priority === 'new').length} nouvelle${dueCards.filter(dc => dc.priority === 'new').length > 1 ? 's' : ''} carte${dueCards.filter(dc => dc.priority === 'new').length > 1 ? 's' : ''}`}
             </p>
-            <Button size="lg" className="bg-blue-600 hover:bg-blue-700" onClick={onStartStudy}>
+            <Button size="lg" className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto" onClick={onStartStudy}>
               Commencer l'étude
             </Button>
           </div>
         ) : (
-          <div className="text-center space-y-4">
-            <Brain className="h-16 w-16 mx-auto text-green-500" />
-            <h3 className="text-xl font-semibold">Toutes les cartes révisées !</h3>
-            <p className="text-muted-foreground">
+          <div className="text-center space-y-3 lg:space-y-4">
+            <Brain className="h-12 w-12 lg:h-16 lg:w-16 mx-auto text-green-500" />
+            <h3 className="text-lg lg:text-xl font-semibold">Toutes les cartes révisées !</h3>
+            <p className="text-muted-foreground text-sm lg:text-base px-2">
               Excellent travail ! Revenez plus tard pour la prochaine session.
             </p>
-            <Button variant="outline" onClick={onViewCards}>
+            <Button variant="outline" onClick={onViewCards} className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               Ajouter des cartes
             </Button>
@@ -315,33 +382,33 @@ function StudyArea({
 function DeckStats({ deck, dueCards }: { deck: AnkiTreeNode; dueCards: any[] }) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">📊 Statistiques</CardTitle>
+      <CardHeader className="pb-3 lg:pb-6">
+        <CardTitle className="text-base lg:text-lg">📊 Statistiques</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-4 mb-4">
+      <CardContent className="pt-0">
+        <div className="grid grid-cols-2 lg:grid-cols-2 gap-3 lg:gap-4 mb-3 lg:mb-4">
           <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">{deck.cardCount || 0}</div>
+            <div className="text-xl lg:text-2xl font-bold text-blue-600">{deck.cardCount || 0}</div>
             <div className="text-xs text-muted-foreground">Total cartes</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-orange-600">{dueCards.length}</div>
+            <div className="text-xl lg:text-2xl font-bold text-orange-600">{dueCards.length}</div>
             <div className="text-xs text-muted-foreground">À réviser</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">{dueCards.filter(dc => dc.priority === 'new').length}</div>
+            <div className="text-xl lg:text-2xl font-bold text-green-600">{dueCards.filter(dc => dc.priority === 'new').length}</div>
             <div className="text-xs text-muted-foreground">Nouvelles</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-purple-600">
+            <div className="text-xl lg:text-2xl font-bold text-purple-600">
               {dueCards.filter(dc => dc.priority === 'overdue').length}
             </div>
             <div className="text-xs text-muted-foreground">En retard</div>
           </div>
         </div>
 
-        {/* Configuration du deck */}
-        <div className="pt-4 border-t">
+        {/* Configuration du deck - masqué sur mobile pour économiser l'espace */}
+        <div className="hidden lg:block pt-4 border-t">
           <h4 className="font-medium text-sm mb-2">Configuration</h4>
           <div className="space-y-1 text-xs text-muted-foreground">
             <div>Nouvelles cartes/jour: {deck.new_cards_per_day}</div>
@@ -365,22 +432,41 @@ function QuickActions({
 }) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">⚡ Actions rapides</CardTitle>
+      <CardHeader className="pb-3 lg:pb-6">
+        <CardTitle className="text-base lg:text-lg">⚡ Actions rapides</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2">
-        <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white" onClick={onStartStudy}>
-          <Brain className="h-4 w-4 mr-2" />
-          Commencer l'étude
-        </Button>
-        <Button className="w-full" variant="outline" onClick={onViewCards}>
-          <Plus className="h-4 w-4 mr-2" />
-          Gérer les cartes
-        </Button>
-        <Button className="w-full" variant="outline" onClick={onViewStatistics}>
-          <BarChart3 className="h-4 w-4 mr-2" />
-          Voir les statistiques
-        </Button>
+      <CardContent className="space-y-2 pt-0">
+        {/* Sur mobile: boutons horizontaux plus compacts */}
+        <div className="lg:hidden flex gap-2">
+          <Button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm" onClick={onStartStudy}>
+            <Brain className="h-4 w-4 mr-1" />
+            Étudier
+          </Button>
+          <Button className="flex-1 text-sm" variant="outline" onClick={onViewCards}>
+            <Plus className="h-4 w-4 mr-1" />
+            Cartes
+          </Button>
+          <Button className="flex-1 text-sm" variant="outline" onClick={onViewStatistics}>
+            <BarChart3 className="h-4 w-4 mr-1" />
+            Stats
+          </Button>
+        </div>
+        
+        {/* Sur desktop: boutons verticaux */}
+        <div className="hidden lg:block space-y-2">
+          <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white" onClick={onStartStudy}>
+            <Brain className="h-4 w-4 mr-2" />
+            Commencer l'étude
+          </Button>
+          <Button className="w-full" variant="outline" onClick={onViewCards}>
+            <Plus className="h-4 w-4 mr-2" />
+            Gérer les cartes
+          </Button>
+          <Button className="w-full" variant="outline" onClick={onViewStatistics}>
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Voir les statistiques
+          </Button>
+        </div>
       </CardContent>
     </Card>
   )

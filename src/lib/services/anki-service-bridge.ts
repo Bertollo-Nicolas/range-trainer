@@ -294,6 +294,7 @@ export class AnkiServiceBridge {
 
   static async deleteDeck(deckId: string) {
     try {
+      const client = this.checkSupabase()
       const { error } = await client
         .from('anki_decks')
         .delete()
@@ -311,6 +312,7 @@ export class AnkiServiceBridge {
 
   static async moveDeck(deckId: string, newParentId: string | null) {
     try {
+      const client = this.checkSupabase()
       const { error } = await client
         .from('anki_decks')
         .update({ parent_id: newParentId })

@@ -20,11 +20,19 @@ import {
 } from '@/types/anki'
 
 export class AnkiService {
+  private static checkSupabase() {
+    if (!supabase) {
+      throw new Error('Supabase not available')
+    }
+    return supabase
+  }
+
   // ==================== DECK MANAGEMENT ====================
 
   // Trouver un deck par nom
   static async findDeckByName(name: string): Promise<AnkiDeck | null> {
-    const { data, error } = await supabase
+    const client = this.checkSupabase()
+    const { data, error } = await client
       .from('anki_decks')
       .select('*')
       .eq('name', name)
@@ -40,7 +48,8 @@ export class AnkiService {
   
   // Récupérer tous les decks avec structure hiérarchique
   static async getDecksTree(): Promise<AnkiTreeNode[]> {
-    const { data: decks, error } = await supabase
+    const client = this.checkSupabase()
+    const { data: decks, error } = await client
       .from('anki_decks')
       .select('*')
       .order('name')
@@ -96,7 +105,8 @@ export class AnkiService {
 
   // Créer un nouveau deck
   static async createDeck(deckData: AnkiDeckInsert): Promise<AnkiDeck> {
-    const { data, error } = await supabase
+    const client = this.checkSupabase()
+    const { data, error } = await client
       .from('anki_decks')
       .insert({
         ...DEFAULT_DECK_CONFIG,
@@ -115,7 +125,8 @@ export class AnkiService {
 
   // Mettre à jour un deck
   static async updateDeck(deckId: string, updates: AnkiDeckUpdate): Promise<void> {
-    const { error } = await supabase
+    const client = this.checkSupabase()
+    const { error } = await client
       .from('anki_decks')
       .update(updates)
       .eq('id', deckId)
@@ -128,7 +139,8 @@ export class AnkiService {
 
   // Supprimer un deck
   static async deleteDeck(deckId: string): Promise<void> {
-    const { error } = await supabase
+    const client = this.checkSupabase()
+    const { error } = await client
       .from('anki_decks')
       .delete()
       .eq('id', deckId)
@@ -141,7 +153,8 @@ export class AnkiService {
 
   // Déplacer un deck (drag & drop)
   static async moveDeck(deckId: string, newParentId: string | null): Promise<void> {
-    const { error } = await supabase
+    const client = this.checkSupabase()
+    const { error } = await client
       .from('anki_decks')
       .update({ parent_id: newParentId })
       .eq('id', deckId)
@@ -156,7 +169,8 @@ export class AnkiService {
 
   // Récupérer les cartes d'un deck
   static async getCards(deckId: string): Promise<AnkiCard[]> {
-    const { data, error } = await supabase
+    const client = this.checkSupabase()
+    const { data, error } = await client
       .from('anki_cards')
       .select('*')
       .eq('deck_id', deckId)
@@ -172,7 +186,8 @@ export class AnkiService {
 
   // Récupérer les cartes dues pour révision
   static async getDueCards(deckId?: string): Promise<AnkiCard[]> {
-    let query = supabase
+    const client = this.checkSupabase()
+    let query = client
       .from('anki_cards')
       .select('*')
       .lte('due_date', new Date().toISOString())
@@ -193,7 +208,8 @@ export class AnkiService {
 
   // Créer une nouvelle carte
   static async createCard(cardData: AnkiCardInsert): Promise<AnkiCard> {
-    const { data, error } = await supabase
+    const client = this.checkSupabase()
+    const { data, error } = await client
       .from('anki_cards')
       .insert(cardData)
       .select()
@@ -209,7 +225,8 @@ export class AnkiService {
 
   // Mettre à jour une carte
   static async updateCard(cardId: string, updates: AnkiCardUpdate): Promise<void> {
-    const { error } = await supabase
+    const client = this.checkSupabase()
+    const { error } = await client
       .from('anki_cards')
       .update(updates)
       .eq('id', cardId)
@@ -222,7 +239,8 @@ export class AnkiService {
 
   // Supprimer une carte
   static async deleteCard(cardId: string): Promise<void> {
-    const { error } = await supabase
+    const client = this.checkSupabase()
+    const { error } = await client
       .from('anki_cards')
       .delete()
       .eq('id', cardId)
@@ -272,7 +290,7 @@ export class AnkiService {
   // Réviser une carte
   static async reviewCard(cardId: string, response: ReviewResponse): Promise<void> {
     // Récupérer la carte actuelle
-    const { data: card, error: fetchError } = await supabase
+    const { data: card, error: fetchError } = await client
       .from('anki_cards')
       .select('*')
       .eq('id', cardId)
@@ -300,7 +318,7 @@ export class AnkiService {
       cardUpdates.lapse_count = card.lapse_count + 1
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await client
       .from('anki_cards')
       .update(cardUpdates)
       .eq('id', cardId)
@@ -321,7 +339,7 @@ export class AnkiService {
       interval_after: sm2Result.interval
     }
 
-    const { error: reviewError } = await supabase
+    const { error: reviewError } = await client
       .from('anki_reviews')
       .insert(reviewData)
 
@@ -570,7 +588,7 @@ export class AnkiService {
 
   // Statistiques d'un deck
   static async getDeckStats(deckId: string) {
-    const { data: cards, error } = await supabase
+    const { data: cards, error } = await client
       .from('anki_cards')
       .select('card_state, due_date')
       .eq('deck_id', deckId)
@@ -594,7 +612,7 @@ export class AnkiService {
 
   // Récupérer les données pour la heatmap
   static async getHeatmapData(startDate: Date, endDate: Date) {
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('anki_reviews')
       .select('reviewed_at')
       .gte('reviewed_at', startDate.toISOString())
@@ -625,7 +643,7 @@ export class AnkiService {
     const startDate = new Date()
     startDate.setDate(startDate.getDate() - days)
 
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from('anki_reviews')
       .select(`
         reviewed_at,
